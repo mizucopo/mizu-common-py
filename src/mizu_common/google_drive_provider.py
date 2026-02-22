@@ -1,35 +1,22 @@
-"""Google Drive upload provider module."""
+"""Google Drive アップロードプロバイダモジュール。"""
 
 import logging
 import time
 from typing import Any, Callable, Dict, Optional
 
 import requests
-from decouple import UndefinedValueError, config
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
-from ..config.env_keys import EnvKeys
-from ..config.service_names import ServiceNames
 
 logger = logging.getLogger(__name__)
 
 
 class GoogleDriveProvider:
-    """Google Drive upload provider using OAuth 2.0 tokens.
+    """OAuth 2.0 トークンを使用した Google Drive アップロードプロバイダ。
 
-    Updates existing files or creates new ones if they don't exist.
+    同名ファイルが存在する場合は更新、存在しない場合は新規作成する。
     """
-
-    PROVIDER_NAME = ServiceNames.GDRIVE
-
-    MANDATORY_KEYS = [
-        EnvKeys.GDRIVE_OAUTH_CLIENT_ID,
-        EnvKeys.GDRIVE_OAUTH_CLIENT_SECRET,
-        EnvKeys.GDRIVE_REFRESH_TOKEN,
-        EnvKeys.GDRIVE_FOLDER_ID,
-    ]
 
     CHUNK_SIZE = 100 * 1024 * 1024
     MAX_RETRIES = 5
@@ -43,38 +30,38 @@ class GoogleDriveProvider:
         credentials: credentials.Credentials,
         drive_service: Optional[Any] = None,
     ) -> None:
-        """Google Drive upload provider.
+        """Google Drive アップロードプロバイダ。
 
         Args:
-            folder_id: Google Drive folder ID
-            credentials: OAuth 2.0 credentials
-            drive_service: Google Drive API service（テスト用）
+            folder_id: Google Drive フォルダ ID
+            credentials: OAuth 2.0 認証情報
+            drive_service: Google Drive API サービス（テスト用）
         """
         self.folder_id = folder_id
         self.creds = credentials
         self.service = drive_service or build("drive", "v3", credentials=credentials)
 
     @classmethod
-    def from_env(cls) -> "GoogleDriveProvider":
-        """環境変数から GoogleDriveProvider を作成（ファクトリメソッド）.
+    def from_credentials(
+        cls,
+        folder_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+    ) -> "GoogleDriveProvider":
+        """認証情報から GoogleDriveProvider を作成（ファクトリメソッド）。
+
+        Args:
+            folder_id: Google Drive フォルダ ID
+            client_id: OAuth クライアント ID
+            client_secret: OAuth クライアントシークレット
+            refresh_token: OAuth リフレッシュトークン
 
         Returns:
             GoogleDriveProvider インスタンス
-
-        Raises:
-            UndefinedValueError: 環境変数が不足している場合
         """
-        try:
-            folder_id = config(EnvKeys.GDRIVE_FOLDER_ID)
-            client_id = config(EnvKeys.GDRIVE_OAUTH_CLIENT_ID)
-            client_secret = config(EnvKeys.GDRIVE_OAUTH_CLIENT_SECRET)
-            refresh_token = config(EnvKeys.GDRIVE_REFRESH_TOKEN)
-        except UndefinedValueError as exc:
-            logger.error(f"Missing Google Drive credentials: {exc}")
-            raise
-
         creds = credentials.Credentials(
-            token=None,  # Will be refreshed on first use
+            token=None,  # 初回使用時に更新される
             refresh_token=refresh_token,
             client_id=client_id,
             client_secret=client_secret,
@@ -85,9 +72,9 @@ class GoogleDriveProvider:
         return cls(folder_id=folder_id, credentials=creds)
 
     def upload(self, source_path: str, destination_filename: str) -> None:
-        """Uploads a file to Google Drive.
+        """Google Drive にファイルをアップロードする。
 
-        同名ファイルが存在する場合は上書き、存在しない場合は新規作成します。
+        同名ファイルが存在する場合は上書き、存在しない場合は新規作成する。
         MediaFileUpload によるチャンキングと next_chunk によるリトライを実装。
 
         Args:
@@ -110,7 +97,7 @@ class GoogleDriveProvider:
             self._create_file(source_path, destination_filename)
 
     def _create_file(self, source_path: str, destination_filename: str) -> None:
-        """新規ファイルを作成してアップロード.
+        """新規ファイルを作成してアップロードする。
 
         Args:
             source_path: ローカルファイルパス
@@ -125,16 +112,18 @@ class GoogleDriveProvider:
         file_metadata = {"name": destination_filename, "parents": [self.folder_id]}
 
         request = self.service.files().create(
-            body=file_metadata, media_body=media, fields="id"
+            body=file_metadata,  # type: ignore[arg-type]
+            media_body=media,
+            fields="id",
         )
 
         self._execute_upload(request, source_path)
 
     def _update_file(self, file_id: str, source_path: str) -> None:
-        """既存ファイルを更新.
+        """既存ファイルを更新する。
 
         Args:
-            file_id: 更新するファイルのID
+            file_id: 更新するファイルの ID
             source_path: ローカルファイルパス
 
         Raises:
@@ -142,7 +131,7 @@ class GoogleDriveProvider:
         """
         logger.info(f"Updating existing file (ID: {file_id})")
 
-        # MediaFileUpload の作成 (チャンキング有効)
+        # MediaFileUpload の作成（チャンキング有効）
         media = MediaFileUpload(source_path, resumable=True, chunksize=self.CHUNK_SIZE)
 
         # files().update() リクエストの構築
@@ -150,14 +139,14 @@ class GoogleDriveProvider:
             fileId=file_id, media_body=media, fields="id"
         )
 
-        # チャンク単位のアップロード実行 (リトライ付き)
+        # チャンク単位のアップロード実行（リトライ付き）
         self._execute_upload(request, source_path)
 
     def _execute_upload(self, request: Any, source_path: str) -> None:
-        """チャンク単位でアップロードを実行.
+        """チャンク単位でアップロードを実行する。
 
         Args:
-            request: Google Drive API request object
+            request: Google Drive API リクエストオブジェクト
             source_path: アップロードするファイルパス
 
         Raises:
@@ -182,16 +171,16 @@ class GoogleDriveProvider:
             raise
 
     def _search_for_file(self, filename: str) -> Optional[str]:
-        """Google Driveフォルダ内で同名ファイルを検索.
+        """Google Drive フォルダ内で同名ファイルを検索する。
 
         Args:
             filename: 検索するファイル名
 
         Returns:
-            ファイルID（存在する場合）、None（存在しない場合）
+            ファイル ID（存在する場合）、None（存在しない場合）
 
         Raises:
-            Exception: 検索API呼び出し失敗時（元の例外がそのまま伝播）
+            Exception: 検索 API 呼び出し失敗時（元の例外がそのまま伝播）
         """
         # ファイル名をエスケープしてクエリインジェクションを防ぐ
         escaped_name = filename.replace("\\", "\\\\").replace("'", "\\'")
@@ -235,7 +224,7 @@ class GoogleDriveProvider:
         output_handler: Optional[Callable[[str], None]] = None,
         http_post: Any = requests.post,
     ) -> Optional[str]:
-        """OAuth 2.0 Device Flow を実行して refresh token を取得.
+        """OAuth 2.0 Device Flow を実行してリフレッシュトークンを取得する。
 
         Args:
             client_id: OAuth クライアント ID
@@ -244,7 +233,7 @@ class GoogleDriveProvider:
             http_post: HTTP POST 関数（テスト用）
 
         Returns:
-            refresh token（成功時）、None（失敗時）
+            リフレッシュトークン（成功時）、None（失敗時）
         """
         _output_handler = print if output_handler is None else output_handler
 
@@ -271,7 +260,7 @@ class GoogleDriveProvider:
     def _get_device_code(
         client_id: str, http_post: Any = requests.post
     ) -> Optional[Dict[str, Any]]:
-        """Google からデバイスコードを要求（HTTP クライアント注入）.
+        """Google からデバイスコードを要求する（HTTP クライアント注入）。
 
         Args:
             client_id: OAuth クライアント ID
@@ -299,7 +288,7 @@ class GoogleDriveProvider:
         expires_in: int,
         http_post: Any = requests.post,
     ) -> Optional[str]:
-        """トークンエンドポイントをポーリング（HTTP クライアント注入）.
+        """トークンエンドポイントをポーリングする（HTTP クライアント注入）。
 
         Args:
             device_code: Google のデバイスコード
@@ -310,7 +299,7 @@ class GoogleDriveProvider:
             http_post: HTTP POST 関数（デフォルト: requests.post）
 
         Returns:
-            refresh token（成功時）、None（失敗時）
+            リフレッシュトークン（成功時）、None（失敗時）
         """
         start_time = time.time()
         payload = {

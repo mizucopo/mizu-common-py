@@ -4,9 +4,8 @@ import os
 from typing import Any
 
 import pytest
-from decouple import UndefinedValueError
 
-from src.cloud.google_drive_provider import GoogleDriveProvider
+from mizu_common.google_drive_provider import GoogleDriveProvider
 
 
 def test_upload_creates_new_file_when_not_exists(
@@ -349,61 +348,35 @@ def test_device_authentication_increases_polling_interval_on_slow_down_request(
     mock_sleep.assert_called_once_with(7)
 
 
-def test_provider_initialization_succeeds_when_environment_variables_are_set(
+def test_provider_initialization_succeeds_when_credentials_are_provided(
     mocker: Any,
 ) -> None:
-    """環境変数が正しい場合、プロバイダが正常に作成されること.
+    """認証情報が正しい場合、プロバイダが正常に作成されること.
 
     Given:
-        - すべての必須環境変数が設定されている
+        - すべての認証情報が提供されている
 
     When:
-        - GoogleDriveProvider.from_env() を実行
+        - GoogleDriveProvider.from_credentials() を実行
 
     Then:
         - GoogleDriveProvider インスタンスが正常に作成される
         - インスタンスに正しい folder_id が設定される
     """
     # Arrange
-    env = {
-        "GDRIVE_OAUTH_CLIENT_ID": "env_client_id",
-        "GDRIVE_OAUTH_CLIENT_SECRET": "env_client_secret",
-        "GDRIVE_REFRESH_TOKEN": "env_refresh_token",
-        "GDRIVE_FOLDER_ID": "env_folder_id",
-    }
-    mocker.patch.dict(os.environ, env)
-
     # Google API ビルドをモック
-    mocker.patch("src.cloud.google_drive_provider.build")
+    mocker.patch("mizu_common.google_drive_provider.build")
 
     # Act
-    provider = GoogleDriveProvider.from_env()
+    provider = GoogleDriveProvider.from_credentials(
+        folder_id="test_folder_id",
+        client_id="test_client_id",
+        client_secret="test_client_secret",
+        refresh_token="test_refresh_token",
+    )
 
     # Assert
-    assert provider.folder_id == "env_folder_id"
-    assert provider.creds.refresh_token == "env_refresh_token"
-    assert provider.creds.client_id == "env_client_id"
-    assert provider.creds.client_secret == "env_client_secret"
-
-
-def test_provider_initialization_fails_when_credentials_are_missing(
-    mocker: Any,
-) -> None:
-    """環境変数に認証情報が不足している場合、初期化が失敗すること.
-
-    Given:
-        - 必須環境変数が不足している
-
-    When:
-        - GoogleDriveProvider.from_env() を実行
-
-    Then:
-        - UndefinedValueError が発生する
-    """
-    # Arrange
-    mocker.patch.dict(os.environ, {}, clear=True)
-
-    # Act & Assert
-    # UndefinedValueError が発生すること
-    with pytest.raises(UndefinedValueError):
-        GoogleDriveProvider.from_env()
+    assert provider.folder_id == "test_folder_id"
+    assert provider.creds.refresh_token == "test_refresh_token"
+    assert provider.creds.client_id == "test_client_id"
+    assert provider.creds.client_secret == "test_client_secret"

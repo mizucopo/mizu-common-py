@@ -1,5 +1,5 @@
 [project]
-name = "Test Project"
+name = "TestProject"
 version = "0.1.0"
 description = "Test Project"
 authors = [
@@ -8,10 +8,15 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.23.0",
+    "requests>=2.31.0",
+    "python-decouple>=3.8",
 ]
 
 [dependency-groups]
 dev = [
+    "google-api-python-client-stubs>=1.32.0",
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-mock>=3.15.1",
@@ -51,6 +56,11 @@ strict = true
 python_version = "3.14"
 files = ["src", "tests"]
 mypy_path = "src:stubs"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["google.*", "googleapiclient.*"]
+ignore_missing_imports = true
 
 [tool.taskipy.tasks]
 test = "ruff check --fix src tests stubs && ruff format src tests stubs && mypy && pytest"
