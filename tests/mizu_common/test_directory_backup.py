@@ -1,4 +1,4 @@
-"""ServiceBackupプロバイダのテスト。"""
+"""DirectoryBackupのテスト。"""
 
 import tempfile
 import zipfile
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from mizu_common.service_backup import ServiceBackup
+from mizu_common.directory_backup import DirectoryBackup
 
 
 def test_creates_zip_archive_from_source_directory() -> None:
@@ -19,7 +19,7 @@ def test_creates_zip_archive_from_source_directory() -> None:
         - バックアップ先に既存のアーカイブファイルが存在する場合がある
 
     When:
-        - ServiceBackup.backup() を実行
+        - DirectoryBackup.backup() を実行
 
     Then:
         - zipアーカイブが作成される
@@ -42,7 +42,7 @@ def test_creates_zip_archive_from_source_directory() -> None:
         backup_dir = Path(temp_dir) / "backup"
         backup_path = backup_dir / "archive.zip"
 
-        backup = ServiceBackup(src_dirpath=str(src_dir))
+        backup = DirectoryBackup(src_dirpath=str(src_dir))
 
         # Act: バックアップを実行
         backup.backup(str(backup_path))
@@ -82,7 +82,7 @@ def test_propagates_filesystem_errors_during_backup(mocker: Any) -> None:
         - shutil.make_archiveがOSErrorをスローする
 
     When:
-        - ServiceBackup.backup() を実行
+        - DirectoryBackup.backup() を実行
 
     Then:
         - OSErrorが呼び出し元に伝播される
@@ -95,11 +95,11 @@ def test_propagates_filesystem_errors_during_backup(mocker: Any) -> None:
 
         backup_path = Path(temp_dir) / "backup" / "archive.zip"
 
-        backup = ServiceBackup(src_dirpath=str(src_dir))
+        backup = DirectoryBackup(src_dirpath=str(src_dir))
 
         # shutil.make_archiveをモックしてファイルシステムエラーをシミュレート
         mock_make_archive = mocker.patch(
-            "mizu_common.service_backup.shutil.make_archive"
+            "mizu_common.directory_backup.shutil.make_archive"
         )
         mock_make_archive.side_effect = OSError("Permission denied")
 

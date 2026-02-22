@@ -1,4 +1,4 @@
-"""サービスバックアッププロバイダモジュール。"""
+"""ディレクトリバックアップモジュール。"""
 
 import logging
 import os
@@ -7,11 +7,11 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
-class ServiceBackup:
-    """ディレクトリのバックアップを行うサービスバックアッププロバイダ。"""
+class DirectoryBackup:
+    """ディレクトリをzipアーカイブにバックアップする。"""
 
     def __init__(self, src_dirpath: str) -> None:
-        """サービスバックアッププロバイダを初期化する。
+        """ディレクトリバックアップを初期化する。
 
         Args:
             src_dirpath (str): バックアップ対象のソースディレクトリパス。
