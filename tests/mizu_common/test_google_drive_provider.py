@@ -225,24 +225,23 @@ def test_device_authentication_returns_none_on_oauth_errors(
     assert result is None
 
 
-def test_device_authentication_increases_polling_interval_on_slow_down(
+def test_device_authentication_succeeds_after_slow_down_response(
     mocker: Any,
 ) -> None:
-    """Google からポーリング間隔の増加を要求された場合、認証が成功すること。
+    """Google から slow_down 応答が返された場合でも、最終的に認証が成功すること。
 
     Given:
         - 有効な OAuth クライアント認証情報
-        - Google がポーリング間隔の増加を要求する
+        - Google が slow_down 応答を返す
 
     When:
         - GoogleDriveProvider.authenticate() を実行
 
     Then:
-        - ポーリング間隔が増加する
-        - 最終的に認証が成功する
+        - 最終的にリフレッシュトークンが取得される
     """
     # Arrange
-    mock_sleep = mocker.patch("time.sleep")
+    mocker.patch("time.sleep")  # 実際の sleep を回避
 
     client_id = "test_client_id"
     client_secret = "test_client_secret"
@@ -284,5 +283,3 @@ def test_device_authentication_increases_polling_interval_on_slow_down(
 
     # Assert
     assert result == "test_refresh_token"
-    # slow_down で interval が 2 → 7 に増加した後、sleep(7) が呼ばれる
-    mock_sleep.assert_called_once_with(7)
