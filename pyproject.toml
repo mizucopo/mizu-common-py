@@ -1,6 +1,6 @@
 [project]
 name = "mizu-common-py"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python用共通ライブラリ"
 authors = [
     {name = "みず", email = "mizu.copo@gmail.com"}
