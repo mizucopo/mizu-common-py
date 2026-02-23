@@ -56,6 +56,7 @@ strict = true
 python_version = "3.14"
 files = ["src", "tests"]
 mypy_path = "src:stubs"
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = ["google.*", "googleapiclient.*"]
