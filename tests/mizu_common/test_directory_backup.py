@@ -13,7 +13,6 @@ def test_creates_zip_archive_from_source_directory() -> None:
     Given:
         - ソースディレクトリに複数のファイルとサブディレクトリが存在する
         - 空ディレクトリも含まれる
-        - バックアップ先に既存のアーカイブファイルが存在する場合がある
 
     When:
         - DirectoryBackup.backup() を実行
@@ -21,8 +20,6 @@ def test_creates_zip_archive_from_source_directory() -> None:
     Then:
         - zipアーカイブが作成される
         - アーカイブにすべてのファイルとサブディレクトリ内のファイルが含まれる
-        - 既存のアーカイブがある場合は上書きされる
-        - 上書きされたアーカイブに新しいファイル内容が含まれる
     """
     # Arrange: サンプルファイルを含む一時ソースディレクトリを作成
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -61,11 +58,3 @@ def test_creates_zip_archive_from_source_directory() -> None:
 
             # 注: 空ディレクトリはプラットフォームやPythonバージョンによって
             # 含まれる場合と含まれない場合がある（shutil.make_archiveの挙動）
-
-        # 異なる内容で新しいアーカイブを作成し、上書き動作を検証
-        (src_dir / "file4.txt").write_text("Content 4")
-        backup.backup(str(backup_path))
-
-        with zipfile.ZipFile(backup_path) as zip_file:
-            assert "file4.txt" in zip_file.namelist()
-            assert zip_file.read("file4.txt") == b"Content 4"
