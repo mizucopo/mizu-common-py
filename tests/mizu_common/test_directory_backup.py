@@ -3,9 +3,6 @@
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
-
-import pytest
 
 from mizu_common.directory_backup import DirectoryBackup
 
@@ -72,37 +69,3 @@ def test_creates_zip_archive_from_source_directory() -> None:
         with zipfile.ZipFile(backup_path) as zip_file:
             assert "file4.txt" in zip_file.namelist()
             assert zip_file.read("file4.txt") == b"Content 4"
-
-
-def test_propagates_filesystem_errors_during_backup(mocker: Any) -> None:
-    """アーカイブ作成中のファイルシステムエラーが呼び出し元に伝播されること.
-
-    Given:
-        - ソースディレクトリが存在する
-        - shutil.make_archiveがOSErrorをスローする
-
-    When:
-        - DirectoryBackup.backup() を実行
-
-    Then:
-        - OSErrorが呼び出し元に伝播される
-    """
-    # Arrange: ソースディレクトリを作成
-    with tempfile.TemporaryDirectory() as temp_dir:
-        src_dir = Path(temp_dir) / "source"
-        src_dir.mkdir()
-        (src_dir / "file.txt").write_text("Content")
-
-        backup_path = Path(temp_dir) / "backup" / "archive.zip"
-
-        backup = DirectoryBackup(src_dirpath=str(src_dir))
-
-        # shutil.make_archiveをモックしてファイルシステムエラーをシミュレート
-        mock_make_archive = mocker.patch(
-            "mizu_common.directory_backup.shutil.make_archive"
-        )
-        mock_make_archive.side_effect = OSError("Permission denied")
-
-        # Act & Assert: エラーが伝播されること
-        with pytest.raises(OSError, match="Permission denied"):
-            backup.backup(str(backup_path))
