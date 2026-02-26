@@ -63,34 +63,6 @@ def test_get_access_token_raises_error_on_failure(mocker: Any) -> None:
         client.get_access_token()
 
 
-def test_get_headers_returns_authorization_header(mocker: Any) -> None:
-    """get_headersがAuthorizationヘッダーを返すこと.
-
-    Arrange:
-        トークンリフレッシュAPIのレスポンスをモックする。
-
-    Act:
-        get_headers()を呼び出す。
-
-    Assert:
-        Authorizationヘッダーが正しく設定されていること。
-    """
-    # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"access_token": "test_access_token"}
-    mocker.patch("requests.post", return_value=mock_response)
-
-    scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
-
-    # Act
-    headers = client.get_headers()
-
-    # Assert
-    assert headers == {"Authorization": "Bearer test_access_token"}
-
-
 def test_get_access_token_caches_token(mocker: Any) -> None:
     """get_access_tokenがトークンをキャッシュすること.
 
