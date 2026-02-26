@@ -1,4 +1,4 @@
-"""ログ設定ユーティリティ.
+"""ログ設定管理ユーティリティ.
 
 アプリケーション全体のログ設定を提供する。
 """
@@ -8,7 +8,7 @@ import sys
 from typing import TextIO
 
 
-class LoggingConfig:
+class LoggingConfigurator:
     """ログ設定管理クラス."""
 
     def __init__(
