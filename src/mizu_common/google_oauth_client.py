@@ -3,6 +3,8 @@
 Google APIへのアクセスに必要なアクセストークンの取得・管理を提供する。
 """
 
+from collections.abc import Sequence
+
 import requests
 
 
@@ -10,25 +12,24 @@ class GoogleOAuthClient:
     """Google OAuth認証クライアント.
 
     OAuth Client IDとRefresh Tokenを使用してアクセストークンを取得する。
-    YouTube APIとGoogle Drive APIの両方に対応したスコープを含む。
+    スコープは外部から注入され、使用するGoogle APIに応じて柔軟に設定可能。
     """
-
-    SCOPES = [
-        "https://www.googleapis.com/auth/youtube.readonly",
-        "https://www.googleapis.com/auth/drive.file",
-    ]
 
     TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-    def __init__(self, oauth_client_id: str, refresh_token: str) -> None:
+    def __init__(
+        self, oauth_client_id: str, refresh_token: str, scopes: Sequence[str]
+    ) -> None:
         """クライアントを初期化する.
 
         Args:
             oauth_client_id: Google OAuth Client ID
             refresh_token: OAuth Refresh Token
+            scopes: 要求するGoogle APIスコープのリスト
         """
         self._oauth_client_id = oauth_client_id
         self._refresh_token = refresh_token
+        self._scopes = scopes
         self._access_token: str | None = None
 
     def get_access_token(self) -> str:
