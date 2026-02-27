@@ -16,7 +16,7 @@ def test_init_adds_handler_to_root_logger() -> None:
         LoggingConfiguratorを初期化する。
 
     Assert:
-        ルートロガーにハンドラーが追加されていること。
+        ルートロガーにハンドラーが1つ追加されていること。
     """
     # Arrange
     stream = StringIO()
@@ -26,4 +26,86 @@ def test_init_adds_handler_to_root_logger() -> None:
 
     # Assert
     root_logger = logging.getLogger()
-    assert len(root_logger.handlers) > 0
+    assert len(root_logger.handlers) == 1
+
+
+def test_multiple_init_does_not_duplicate_handlers() -> None:
+    """複数回初期化してもハンドラーが重複しないこと.
+
+    Arrange:
+        出力先としてStringIOを準備する。
+
+    Act:
+        LoggingConfiguratorを複数回初期化する。
+
+    Assert:
+        ルートロガーのハンドラー数が1のままであること。
+    """
+    # Arrange
+    stream = StringIO()
+
+    # Act
+    LoggingConfigurator(level=logging.INFO, stream=stream)
+    LoggingConfigurator(level=logging.DEBUG, stream=stream)
+    LoggingConfigurator(level=logging.WARNING, stream=stream)
+
+    # Assert
+    root_logger = logging.getLogger()
+    assert len(root_logger.handlers) == 1
+
+
+def test_force_parameter_allows_reinitialization() -> None:
+    """forceパラメータで再初期化できること.
+
+    Arrange:
+        出力先としてStringIOを準備する。
+        LoggingConfiguratorを初期化する。
+
+    Act:
+        force=TrueでLoggingConfiguratorを再度初期化する。
+
+    Assert:
+        ルートロガーのハンドラー数が1のままであること（クリア後に追加される）。
+        ログレベルが新しい値に更新されていること。
+    """
+    # Arrange
+    stream = StringIO()
+    LoggingConfigurator(level=logging.INFO, stream=stream)
+
+    # Act
+    LoggingConfigurator(level=logging.DEBUG, stream=stream, force=True)
+
+    # Assert
+    root_logger = logging.getLogger()
+    assert len(root_logger.handlers) == 1
+    assert root_logger.level == logging.DEBUG
+
+
+def test_reset_clears_initialization_state() -> None:
+    """resetメソッドが初期化状態をクリアすること.
+
+    Arrange:
+        LoggingConfiguratorを初期化する。
+
+    Act:
+        resetメソッドを呼び出す。
+
+    Assert:
+        ルートロガーのハンドラーがクリアされること。
+        その後再度初期化すると新しいハンドラーが追加されること。
+    """
+    # Arrange
+    stream = StringIO()
+    LoggingConfigurator(level=logging.INFO, stream=stream)
+    root_logger = logging.getLogger()
+    assert len(root_logger.handlers) == 1
+
+    # Act
+    LoggingConfigurator.reset()
+
+    # Assert
+    assert len(root_logger.handlers) == 0
+
+    # 再度初期化すると新しいハンドラーが追加されること
+    LoggingConfigurator(level=logging.DEBUG, stream=stream)
+    assert len(root_logger.handlers) == 1
