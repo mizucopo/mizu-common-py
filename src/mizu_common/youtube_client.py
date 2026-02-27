@@ -3,6 +3,7 @@
 YouTubeライブアーカイブの検出と詳細取得を提供する。
 """
 
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, cast
 
@@ -66,20 +67,24 @@ class YouTubeClient:
 
         return cast("dict[str, Any]", response.json())
 
-    def get_live_archives(self, channel_id: str) -> list[YouTubeVideoInfo]:
-        """チャンネルのライブアーカイブ一覧を取得する.
+    def iter_live_archives(self, channel_id: str) -> Iterator[YouTubeVideoInfo]:
+        """チャンネルのライブアーカイブを順次取得するジェネレーター.
 
         Args:
             channel_id: YouTubeチャンネルID
 
-        Returns:
-            ライブアーカイブのリスト
+        Yields:
+            YouTubeVideoInfo: ライブアーカイブ情報
 
         Raises:
             YouTubeNetworkError: ネットワークエラーが発生した場合
             YouTubeHttpError: HTTPステータスエラーが発生した場合
+
+        Note:
+            例外は遅延して発生する可能性があります。
+            2ページ目以降の取得時にエラーが発生した場合、
+            そのページの最初の動画を取得しようとしたタイミングで例外が送出されます。
         """
-        videos: list[YouTubeVideoInfo] = []
         next_page_token: str | None = None
 
         while True:
@@ -99,13 +104,15 @@ class YouTubeClient:
             video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
             if video_ids:
                 video_details = self._get_video_details_batch(video_ids)
-                videos.extend(video_details)
+                yield from video_details
 
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
                 break
 
-        return videos
+    def get_live_archives(self, channel_id: str) -> list[YouTubeVideoInfo]:
+        """チャンネルのライブアーカイブ一覧を取得する."""
+        return list(self.iter_live_archives(channel_id))
 
     def _get_video_details_batch(self, video_ids: list[str]) -> list[YouTubeVideoInfo]:
         """複数の動画詳細を一括取得する.
