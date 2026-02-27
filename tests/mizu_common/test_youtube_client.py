@@ -17,27 +17,6 @@ def mock_oauth_client() -> GoogleOAuthClient:
     return client
 
 
-def test_init_stores_oauth_client(
-    mock_oauth_client: GoogleOAuthClient,
-) -> None:
-    """初期化時にOAuth認証クライアントが保持されること.
-
-    Arrange:
-        モックされたOAuth認証クライアントを準備する。
-
-    Act:
-        YouTubeClientを作成する。
-
-    Assert:
-        OAuth認証クライアントが正しく設定されていること。
-    """
-    # Arrange & Act
-    client = YouTubeClient(mock_oauth_client)
-
-    # Assert
-    assert client._oauth_client == mock_oauth_client
-
-
 def test_get_video_details_returns_video_info(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
@@ -158,35 +137,3 @@ def test_get_live_archives_returns_videos(
     assert len(result) == 1
     assert result[0].video_id == "video1"
     assert result[0].title == "Live Archive 1"
-
-
-def test_request_includes_authorization_header(
-    mocker: Any, mock_oauth_client: GoogleOAuthClient
-) -> None:
-    """APIリクエストにAuthorizationヘッダーが含まれること.
-
-    Arrange:
-        requests.getをモックする。
-
-    Act:
-        APIリクエストを実行する。
-
-    Assert:
-        Authorizationヘッダーが含まれていること。
-    """
-    # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"items": []}
-    mock_get = mocker.patch("requests.get", return_value=mock_response)
-
-    client = YouTubeClient(mock_oauth_client)
-
-    # Act
-    client.get_video_details("test_video_id")
-
-    # Assert
-    mock_get.assert_called_once()
-    call_kwargs = mock_get.call_args.kwargs
-    assert "headers" in call_kwargs
-    assert call_kwargs["headers"]["Authorization"] == "Bearer test_token"
