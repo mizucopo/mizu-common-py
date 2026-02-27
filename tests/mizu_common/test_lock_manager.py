@@ -88,7 +88,7 @@ def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
 
 
 def test_acquire_lock_raises_error_on_recent_file(tmp_path: Path) -> None:
-    """新しいロックファイルがある場合はAlreadyRunningErrorすること.
+    """新しいロックファイルがある場合はAlreadyRunningErrorが発生すること.
 
     Arrange:
         stale_hours=1を設定する。
