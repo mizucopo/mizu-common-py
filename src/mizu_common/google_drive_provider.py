@@ -1,7 +1,7 @@
 """Google Drive アップロードプロバイダモジュール。"""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
@@ -24,7 +24,7 @@ class GoogleDriveProvider:
         self,
         folder_id: str,
         credentials: credentials.Credentials,
-        drive_service: Optional[Any] = None,
+        drive_service: Any | None = None,
     ) -> None:
         """Google Drive アップロードプロバイダ。
 
@@ -166,7 +166,7 @@ class GoogleDriveProvider:
             )
             raise
 
-    def _search_for_file(self, filename: str) -> Optional[str]:
+    def _search_for_file(self, filename: str) -> str | None:
         """Google Drive フォルダ内で同名ファイルを検索する。
 
         Args:
