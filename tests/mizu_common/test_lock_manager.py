@@ -60,55 +60,59 @@ def test_acquire_lock_releases_on_exit(tmp_path: Path) -> None:
 
 
 def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
-    """古いロックファイルがある場合にStaleLockErrorが発生すること.
+    """古いロックファイルを他のプロセスが保持している場合にStaleLockErrorが発生すること.
 
     Arrange:
         stale_hours=1を設定する。
-        ロックファイルを作成し、mtimeを4時間前に設定する。
+        別のLockManagerでロックを取得し、mtimeを4時間前に設定する。
 
     Act:
-        ロックを取得しようとする。
+        別のLockManagerでロックを取得しようとする。
 
     Assert:
         StaleLockErrorが発生すること。
     """
-    # Arrange
-    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
-    lock_path = tmp_path / ".app.lock"
-    lock_path.touch()
-    # mtimeを4時間前に設定（stale_hours=1より古い）
-    stale_time = os.path.getmtime(lock_path) - 4 * 3600
-    os.utime(lock_path, (stale_time, stale_time))
+    # Arrange - 別のLockManagerでロックを取得
+    first_lock = LockManager(lock_dir=tmp_path, stale_hours=1)
+    first_cm = first_lock.acquire()
+    first_cm.__enter__()
 
-    # Act & Assert
-    with (
-        pytest.raises(StaleLockError, match="Stale lock file detected"),
-        lock_manager.acquire(),
-    ):
-        pass
+    try:
+        # mtimeを4時間前に設定（stale_hours=1より古い）
+        lock_path = tmp_path / ".app.lock"
+        stale_time = os.path.getmtime(lock_path) - 4 * 3600
+        os.utime(lock_path, (stale_time, stale_time))
+
+        # Act & Assert
+        lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
+        with pytest.raises(StaleLockError, match="Stale lock file detected"):
+            lock_manager.acquire().__enter__()
+    finally:
+        first_cm.__exit__(None, None, None)
 
 
 def test_acquire_lock_raises_error_on_recent_file(tmp_path: Path) -> None:
-    """新しいロックファイルがある場合はAlreadyRunningErrorが発生すること.
+    """新しいロックファイルを他のプロセスが保持している場合はAlreadyRunningErrorが発生すること.
 
     Arrange:
         stale_hours=1を設定する。
-        ロックファイルを作成する。
+        別のLockManagerでロックを取得する。
 
     Act:
-        ロックを取得しようとする。
+        別のLockManagerでロックを取得しようとする。
 
     Assert:
         AlreadyRunningErrorが発生すること。
     """
-    # Arrange
-    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
-    lock_path = tmp_path / ".app.lock"
-    lock_path.touch()
+    # Arrange - 別のLockManagerでロックを取得
+    first_lock = LockManager(lock_dir=tmp_path, stale_hours=1)
+    first_cm = first_lock.acquire()
+    first_cm.__enter__()
 
-    # Act & Assert
-    with (
-        pytest.raises(AlreadyRunningError, match="Another instance"),
-        lock_manager.acquire(),
-    ):
-        pass
+    try:
+        # Act & Assert
+        lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
+        with pytest.raises(AlreadyRunningError, match="Another instance"):
+            lock_manager.acquire().__enter__()
+    finally:
+        first_cm.__exit__(None, None, None)

@@ -3,7 +3,6 @@
 二重起動防止のためのファイルロック機能を提供する。
 """
 
-import os
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
@@ -72,36 +71,35 @@ class LockManager:
             StaleLockError: 古いロックファイルが存在する場合
             AlreadyRunningError: 他のインスタンスが実行中の場合
         """
-        # 古いロックファイルの場合はエラー
-        if self._is_stale():
-            raise StaleLockError(
-                f"Stale lock file detected (older than {self._stale_hours} hours): "
-                f"{self._lock_path}"
-            )
+        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # ロックファイルが存在する場合はエラー
-        if self._lock_path.exists():
+        # まずロック取得を試みる
+        lock = portalocker.Lock(
+            self._lock_path,
+            mode="a",  # 追記モード（存在しない場合は作成、存在する場合は維持）
+            flags=LockFlags.EXCLUSIVE | LockFlags.NON_BLOCKING,
+        )
+
+        try:
+            lock.acquire()
+        except portalocker.exceptions.AlreadyLocked:
+            # ロック取得失敗時のみ、Staleかどうかをチェック
+            if self._is_stale():
+                raise StaleLockError(
+                    f"Stale lock file detected (older than {self._stale_hours} hours): "
+                    f"{self._lock_path}"
+                ) from None
             raise AlreadyRunningError(
                 f"Another instance is already running. Lock file: {self._lock_path}",
                 lock_path=self._lock_path,
-            )
+            ) from None
 
-        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(self._lock_path, "w") as lock_file:
-            try:
-                flags = LockFlags.EXCLUSIVE | LockFlags.NON_BLOCKING
-                portalocker.lock(lock_file, flags)
-                yield
-            except portalocker.exceptions.AlreadyLocked as e:
-                raise AlreadyRunningError(
-                    "Another instance is already running",
-                    lock_path=self._lock_path,
-                ) from e
-            finally:
-                portalocker.unlock(lock_file)
-                with suppress(OSError):
-                    os.unlink(self._lock_path)
+        try:
+            yield
+        finally:
+            lock.release()
+            with suppress(OSError):
+                self._lock_path.unlink()
 
     def release(self) -> bool:
         """ロックファイルを削除する.
