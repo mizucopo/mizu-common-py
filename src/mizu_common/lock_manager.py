@@ -3,12 +3,14 @@
 二重起動防止のためのファイルロック機能を提供する。
 """
 
-import fcntl
 import os
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
+
+import portalocker
+from portalocker import LockFlags
 
 from mizu_common.exceptions.already_running_error import AlreadyRunningError
 from mizu_common.exceptions.stale_lock_error import StaleLockError
@@ -87,12 +89,13 @@ class LockManager:
 
         with open(self._lock_path, "w") as lock_file:
             try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                flags = LockFlags.EXCLUSIVE | LockFlags.NON_BLOCKING
+                portalocker.lock(lock_file, flags)
                 yield
-            except BlockingIOError as e:
+            except portalocker.exceptions.AlreadyLocked as e:
                 raise AlreadyRunningError("Another instance is already running") from e
             finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                portalocker.unlock(lock_file)
                 with suppress(OSError):
                     os.unlink(self._lock_path)
 

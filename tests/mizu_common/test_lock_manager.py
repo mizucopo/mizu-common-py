@@ -1,6 +1,6 @@
 """ファイルロックユーティリティのテスト."""
 
-import time
+import os
 from pathlib import Path
 
 import pytest
@@ -62,8 +62,8 @@ def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
     """古いロックファイルがある場合にStaleLockErrorが発生すること.
 
     Arrange:
-        stale_hours=0を設定して、即座に古いと判定されるようにする。
-        ロックファイルを作成する。
+        stale_hours=1を設定する。
+        ロックファイルを作成し、mtimeを4時間前に設定する。
 
     Act:
         ロックを取得しようとする。
@@ -72,12 +72,12 @@ def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
         StaleLockErrorが発生すること。
     """
     # Arrange
-    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=0)
+    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
     lock_path = tmp_path / ".app.lock"
     lock_path.touch()
-
-    # 少し待機してファイルのmtimeが確実に古くなるようにする
-    time.sleep(0.1)
+    # mtimeを4時間前に設定（stale_hours=1より古い）
+    stale_time = os.path.getmtime(lock_path) - 4 * 3600
+    os.utime(lock_path, (stale_time, stale_time))
 
     # Act & Assert
     with (
