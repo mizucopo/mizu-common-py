@@ -3,19 +3,15 @@
 YouTubeライブアーカイブの検出と詳細取得を提供する。
 """
 
-import logging
 from datetime import datetime
 from typing import Any, cast
 
 import requests
 
-from mizu_common.exceptions.youtube_api_error import YouTubeApiError
 from mizu_common.exceptions.youtube_http_error import YouTubeHttpError
 from mizu_common.exceptions.youtube_network_error import YouTubeNetworkError
 from mizu_common.google_oauth_client import GoogleOAuthClient
 from mizu_common.models.youtube_video_info import YouTubeVideoInfo
-
-logger = logging.getLogger(__name__)
 
 
 class YouTubeClient:
@@ -78,6 +74,10 @@ class YouTubeClient:
 
         Returns:
             ライブアーカイブのリスト
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
         """
         videos: list[YouTubeVideoInfo] = []
         next_page_token: str | None = None
@@ -94,11 +94,7 @@ class YouTubeClient:
             if next_page_token:
                 params["pageToken"] = next_page_token
 
-            try:
-                data = self._make_request("search", params)
-            except YouTubeApiError as e:
-                logger.warning(f"ライブアーカイブの取得に失敗しました: {e}")
-                break
+            data = self._make_request("search", params)
 
             video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
             if video_ids:
@@ -119,6 +115,10 @@ class YouTubeClient:
 
         Returns:
             動画情報のリスト
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
         """
         if not video_ids:
             return []
@@ -128,11 +128,7 @@ class YouTubeClient:
             "id": ",".join(video_ids),
         }
 
-        try:
-            data = self._make_request("videos", params)
-        except YouTubeApiError as e:
-            logger.warning(f"動画詳細の取得に失敗しました: {e}")
-            return []
+        data = self._make_request("videos", params)
 
         videos: list[YouTubeVideoInfo] = []
         for item in data.get("items", []):
@@ -165,6 +161,10 @@ class YouTubeClient:
 
         Returns:
             動画情報（存在しない場合はNone）
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
         """
         videos = self._get_video_details_batch([video_id])
         return videos[0] if videos else None
