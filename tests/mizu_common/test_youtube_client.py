@@ -4,7 +4,10 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
+import requests
 
+from mizu_common.exceptions.youtube_http_error import YouTubeHttpError
+from mizu_common.exceptions.youtube_network_error import YouTubeNetworkError
 from mizu_common.google_oauth_client import GoogleOAuthClient
 from mizu_common.youtube_client import YouTubeClient
 
@@ -60,10 +63,10 @@ def test_get_video_details_returns_video_info(
     assert result.duration == "PT10M"
 
 
-def test_get_video_details_returns_none_on_error(
+def test_get_video_details_returns_none_on_http_error(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
-    """APIエラー時にget_video_detailsがNoneを返すこと.
+    """HTTPエラー時にget_video_detailsがNoneを返すこと.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -86,6 +89,90 @@ def test_get_video_details_returns_none_on_error(
 
     # Assert
     assert result is None
+
+
+def test_get_video_details_returns_none_on_network_error(
+    mocker: Any, mock_oauth_client: GoogleOAuthClient
+) -> None:
+    """ネットワークエラー時にget_video_detailsがNoneを返すこと.
+
+    Arrange:
+        ネットワークエラーをモックする。
+
+    Act:
+        get_video_details()を呼び出す。
+
+    Assert:
+        Noneが返されること。
+    """
+    # Arrange
+    mocker.patch(
+        "requests.get",
+        side_effect=requests.exceptions.ConnectionError("Connection failed"),
+    )
+
+    client = YouTubeClient(mock_oauth_client)
+
+    # Act
+    result = client.get_video_details("test_video_id")
+
+    # Assert
+    assert result is None
+
+
+def test_make_request_raises_http_error_on_non_200(
+    mocker: Any, mock_oauth_client: GoogleOAuthClient
+) -> None:
+    """_make_requestが非200レスポンスでYouTubeHttpErrorをスローすること.
+
+    Arrange:
+        404エラーレスポンスをモックする。
+
+    Act:
+        _make_request()を呼び出す。
+
+    Assert:
+        YouTubeHttpErrorがスローされること。
+    """
+    # Arrange
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mocker.patch("requests.get", return_value=mock_response)
+
+    client = YouTubeClient(mock_oauth_client)
+
+    # Act & Assert
+    with pytest.raises(YouTubeHttpError) as exc_info:
+        client._make_request("videos", {"id": "test_id"})
+
+    assert exc_info.value.status_code == 404
+
+
+def test_make_request_raises_network_error_on_connection_failure(
+    mocker: Any, mock_oauth_client: GoogleOAuthClient
+) -> None:
+    """_make_requestが接続エラーでYouTubeNetworkErrorをスローすること.
+
+    Arrange:
+        接続エラーをモックする。
+
+    Act:
+        _make_request()を呼び出す。
+
+    Assert:
+        YouTubeNetworkErrorがスローされること。
+    """
+    # Arrange
+    original_error = requests.exceptions.ConnectionError("Connection failed")
+    mocker.patch("requests.get", side_effect=original_error)
+
+    client = YouTubeClient(mock_oauth_client)
+
+    # Act & Assert
+    with pytest.raises(YouTubeNetworkError) as exc_info:
+        client._make_request("videos", {"id": "test_id"})
+
+    assert exc_info.value.cause == original_error
 
 
 def test_get_live_archives_returns_videos(
@@ -137,3 +224,60 @@ def test_get_live_archives_returns_videos(
     assert len(result) == 1
     assert result[0].video_id == "video1"
     assert result[0].title == "Live Archive 1"
+
+
+def test_get_live_archives_returns_empty_on_http_error(
+    mocker: Any, mock_oauth_client: GoogleOAuthClient
+) -> None:
+    """HTTPエラー時にget_live_archivesが空リストを返すこと.
+
+    Arrange:
+        エラーレスポンスをモックする。
+
+    Act:
+        get_live_archives()を呼び出す。
+
+    Assert:
+        空リストが返されること。
+    """
+    # Arrange
+    mock_response = Mock()
+    mock_response.status_code = 500
+    mocker.patch("requests.get", return_value=mock_response)
+
+    client = YouTubeClient(mock_oauth_client)
+
+    # Act
+    result = client.get_live_archives("test_channel_id")
+
+    # Assert
+    assert result == []
+
+
+def test_get_live_archives_returns_empty_on_network_error(
+    mocker: Any, mock_oauth_client: GoogleOAuthClient
+) -> None:
+    """ネットワークエラー時にget_live_archivesが空リストを返すこと.
+
+    Arrange:
+        ネットワークエラーをモックする。
+
+    Act:
+        get_live_archives()を呼び出す。
+
+    Assert:
+        空リストが返されること。
+    """
+    # Arrange
+    mocker.patch(
+        "requests.get",
+        side_effect=requests.exceptions.Timeout("Request timed out"),
+    )
+
+    client = YouTubeClient(mock_oauth_client)
+
+    # Act
+    result = client.get_live_archives("test_channel_id")
+
+    # Assert
+    assert result == []

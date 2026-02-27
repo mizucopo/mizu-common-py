@@ -9,6 +9,9 @@ from typing import Any, cast
 
 import requests
 
+from mizu_common.exceptions.youtube_api_error import YouTubeApiError
+from mizu_common.exceptions.youtube_http_error import YouTubeHttpError
+from mizu_common.exceptions.youtube_network_error import YouTubeNetworkError
 from mizu_common.google_oauth_client import GoogleOAuthClient
 from mizu_common.models.youtube_video_info import YouTubeVideoInfo
 
@@ -31,9 +34,7 @@ class YouTubeClient:
         """
         self._oauth_client = oauth_client
 
-    def _make_request(
-        self, endpoint: str, params: dict[str, str]
-    ) -> dict[str, Any] | None:
+    def _make_request(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
         """APIリクエストを実行する.
 
         Args:
@@ -41,7 +42,11 @@ class YouTubeClient:
             params: リクエストパラメータ
 
         Returns:
-            レスポンスJSON（エラー時はNone）
+            レスポンスJSON
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
         """
         headers = self._oauth_client.get_headers()
         try:
@@ -52,15 +57,16 @@ class YouTubeClient:
                 timeout=30,
             )
         except requests.exceptions.RequestException as e:
-            logger.error(f"APIリクエストに失敗しました: {e}")
-            return None
+            raise YouTubeNetworkError(
+                f"APIリクエストに失敗しました: {e}", cause=e
+            ) from e
 
         if response.status_code != 200:
-            logger.error(
+            raise YouTubeHttpError(
                 f"APIリクエストが失敗しました: status={response.status_code}, "
-                f"endpoint={endpoint}"
+                f"endpoint={endpoint}",
+                status_code=response.status_code,
             )
-            return None
 
         return cast("dict[str, Any]", response.json())
 
@@ -88,8 +94,10 @@ class YouTubeClient:
             if next_page_token:
                 params["pageToken"] = next_page_token
 
-            data = self._make_request("search", params)
-            if data is None:
+            try:
+                data = self._make_request("search", params)
+            except YouTubeApiError as e:
+                logger.warning(f"ライブアーカイブの取得に失敗しました: {e}")
                 break
 
             video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
@@ -120,8 +128,10 @@ class YouTubeClient:
             "id": ",".join(video_ids),
         }
 
-        data = self._make_request("videos", params)
-        if data is None:
+        try:
+            data = self._make_request("videos", params)
+        except YouTubeApiError as e:
+            logger.warning(f"動画詳細の取得に失敗しました: {e}")
             return []
 
         videos: list[YouTubeVideoInfo] = []
