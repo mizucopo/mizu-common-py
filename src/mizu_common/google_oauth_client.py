@@ -41,10 +41,13 @@ class GoogleOAuthClient:
         self._scopes = scopes
         self._access_token: str | None = None
 
-    def get_access_token(self) -> str:
+    def get_access_token(self, force_refresh: bool = False) -> str:
         """アクセストークンを取得する.
 
         必要に応じてリフレッシュトークンを使用して新しいトークンを取得する。
+
+        Args:
+            force_refresh: Trueの場合、強制的にトークンを更新する
 
         Returns:
             アクセストークン
@@ -52,7 +55,7 @@ class GoogleOAuthClient:
         Raises:
             RuntimeError: アクセストークンの取得に失敗した場合
         """
-        if self._access_token is None:
+        if self._access_token is None or force_refresh:
             self._refresh_access_token()
         return self._access_token  # type: ignore[return-value]
 
@@ -85,6 +88,30 @@ class GoogleOAuthClient:
 
         data = response.json()
         self._access_token = data["access_token"]
+
+    def refresh_on_unauthorized(self, api_call: Callable[[], Any]) -> Any:
+        """トークン期限切れ時に自動リフレッシュしてAPI呼び出しを再試行する.
+
+        Args:
+            api_call: API呼び出し関数（get_headers()を使用してリクエストを行う）
+
+        Returns:
+            API呼び出しの結果
+
+        Raises:
+            Exception: リフレッシュ後も失敗した場合、または401以外のエラー
+        """
+        try:
+            return api_call()
+        except requests.exceptions.HTTPError as e:
+            if self._is_unauthorized_error(e):
+                self.get_access_token(force_refresh=True)
+                return api_call()
+            raise
+
+    def _is_unauthorized_error(self, error: requests.exceptions.HTTPError) -> bool:
+        """エラーが401 Unauthorizedかどうかを判定する."""
+        return error.response is not None and error.response.status_code == 401
 
     @classmethod
     def authenticate(
