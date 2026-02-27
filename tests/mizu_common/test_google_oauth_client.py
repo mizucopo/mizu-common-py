@@ -128,7 +128,8 @@ def test_device_authentication_completes_successfully_with_valid_credentials(
         "expires_in": 1800,
         "interval": 5,
     }
-    mock_post = mocker.Mock()
+
+    mock_post = mocker.patch("mizu_common.google_oauth_client.requests.post")
     mock_post.side_effect = [
         mocker.Mock(
             status_code=200,
@@ -153,7 +154,6 @@ def test_device_authentication_completes_successfully_with_valid_credentials(
         client_secret=client_secret,
         scopes=scopes,
         output_handler=capture_output,
-        http_post=mock_post,
     )
 
     # Assert
@@ -198,7 +198,7 @@ def test_device_authentication_returns_none_on_oauth_errors(
         "interval": 1,
     }
 
-    mock_post = mocker.Mock()
+    mock_post = mocker.patch("mizu_common.google_oauth_client.requests.post")
     mock_post.side_effect = [
         mocker.Mock(
             status_code=200,
@@ -218,7 +218,6 @@ def test_device_authentication_returns_none_on_oauth_errors(
         client_secret=client_secret,
         scopes=scopes,
         output_handler=lambda _: None,
-        http_post=mock_post,
     )
 
     # Assert
@@ -255,7 +254,7 @@ def test_device_authentication_succeeds_after_slow_down_response(
         "interval": 2,
     }
 
-    mock_post = mocker.Mock()
+    mock_post = mocker.patch("mizu_common.google_oauth_client.requests.post")
     mock_post.side_effect = [
         mocker.Mock(
             status_code=200,
@@ -280,7 +279,6 @@ def test_device_authentication_succeeds_after_slow_down_response(
         client_secret=client_secret,
         scopes=scopes,
         output_handler=lambda _: None,
-        http_post=mock_post,
     )
 
     # Assert

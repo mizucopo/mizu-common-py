@@ -93,7 +93,6 @@ class GoogleOAuthClient:
         client_secret: str,
         scopes: Sequence[str],
         output_handler: Optional[Callable[[str], None]] = None,
-        http_post: Optional[Callable[..., requests.Response]] = None,
     ) -> Optional[str]:
         """OAuth 2.0 Device Flowを実行してリフレッシュトークンを取得する.
 
@@ -102,15 +101,13 @@ class GoogleOAuthClient:
             client_secret: OAuth クライアントシークレット
             scopes: 要求するGoogle APIスコープのリスト
             output_handler: 出力ハンドラー（デフォルト: print）
-            http_post: HTTP POST関数（テスト用）
 
         Returns:
             リフレッシュトークン（成功時）、None（失敗時）
         """
         _output_handler = print if output_handler is None else output_handler
-        _http_post = http_post or requests.post
 
-        device_code_data = cls._get_device_code(client_id, scopes, _http_post)
+        device_code_data = cls._get_device_code(client_id, scopes)
         if not device_code_data:
             return None
 
@@ -126,7 +123,7 @@ class GoogleOAuthClient:
         _output_handler(wait_msg)
 
         return cls._poll_for_token(
-            device_code, client_id, client_secret, interval, expires_in, _http_post
+            device_code, client_id, client_secret, interval, expires_in
         )
 
     @classmethod
@@ -134,21 +131,19 @@ class GoogleOAuthClient:
         cls,
         client_id: str,
         scopes: Sequence[str],
-        http_post: Callable[..., requests.Response],
     ) -> Optional[dict[str, Any]]:
         """Googleからデバイスコードを要求する.
 
         Args:
             client_id: OAuth クライアント ID
             scopes: 要求するスコープのリスト
-            http_post: HTTP POST関数
 
         Returns:
             デバイスコードレスポンスデータ、失敗時は None
         """
         payload = {"client_id": client_id, "scope": " ".join(scopes)}
         try:
-            response = http_post(cls.DEVICE_CODE_URL, data=payload)
+            response = requests.post(cls.DEVICE_CODE_URL, data=payload, timeout=30)
             response.raise_for_status()
             data: dict[str, Any] = response.json()
             return data
@@ -164,7 +159,6 @@ class GoogleOAuthClient:
         client_secret: str,
         interval: int,
         expires_in: int,
-        http_post: Callable[..., requests.Response],
     ) -> Optional[str]:
         """トークンエンドポイントをポーリングする.
 
@@ -174,7 +168,6 @@ class GoogleOAuthClient:
             client_secret: OAuth クライアントシークレット
             interval: ポーリング間隔（秒）
             expires_in: 有効期限（秒）
-            http_post: HTTP POST関数
 
         Returns:
             リフレッシュトークン（成功時）、None（失敗時）
@@ -189,7 +182,7 @@ class GoogleOAuthClient:
 
         while time.time() - start_time < expires_in:
             try:
-                response = http_post(cls.TOKEN_URL, data=payload)
+                response = requests.post(cls.TOKEN_URL, data=payload, timeout=30)
                 data: dict[str, Any] = response.json()
 
                 if response.status_code == 200:
