@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from mizu_common.exceptions import AlreadyRunningError, StaleLockError
+from mizu_common.exceptions.already_running_error import AlreadyRunningError
+from mizu_common.exceptions.stale_lock_error import StaleLockError
 from mizu_common.lock_manager import LockManager
 
 
