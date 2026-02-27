@@ -7,6 +7,8 @@ from google.oauth2 import credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
+from mizu_common.constants.google_scope import GoogleScope
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +20,7 @@ class GoogleDriveProvider:
 
     CHUNK_SIZE = 100 * 1024 * 1024
     MAX_RETRIES = 5
-    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+    SCOPES = [GoogleScope.DRIVE_FILE]
 
     def __init__(
         self,
