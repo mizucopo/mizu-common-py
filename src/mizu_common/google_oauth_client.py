@@ -28,7 +28,6 @@ class GoogleOAuthClient:
         oauth_client_id: str,
         refresh_token: str,
         scopes: Sequence[str],
-        http_post: Optional[Callable[..., requests.Response]] = None,
     ) -> None:
         """クライアントを初期化する.
 
@@ -36,13 +35,11 @@ class GoogleOAuthClient:
             oauth_client_id: Google OAuth Client ID
             refresh_token: OAuth Refresh Token
             scopes: 要求するGoogle APIスコープのリスト
-            http_post: HTTP POST関数（テスト用）
         """
         self._oauth_client_id = oauth_client_id
         self._refresh_token = refresh_token
         self._scopes = scopes
         self._access_token: str | None = None
-        self._http_post = http_post or requests.post
 
     def get_access_token(self) -> str:
         """アクセストークンを取得する.
@@ -73,7 +70,7 @@ class GoogleOAuthClient:
         Raises:
             RuntimeError: トークン更新に失敗した場合
         """
-        response = self._http_post(
+        response = requests.post(
             self.TOKEN_URL,
             data={
                 "client_id": self._oauth_client_id,

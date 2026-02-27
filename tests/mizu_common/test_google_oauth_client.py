@@ -25,12 +25,12 @@ def test_get_access_token_returns_refreshed_token(mocker: Any) -> None:
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"access_token": "new_access_token"}
-    mock_post = mocker.Mock(return_value=mock_response)
+    mocker.patch(
+        "mizu_common.google_oauth_client.requests.post", return_value=mock_response
+    )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient(
-        "client_id", "refresh_token", scopes, http_post=mock_post
-    )
+    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
 
     # Act
     token = client.get_access_token()
@@ -55,12 +55,12 @@ def test_get_access_token_raises_error_on_failure(mocker: Any) -> None:
     mock_response = Mock()
     mock_response.status_code = 400
     mock_response.text = "invalid_grant"
-    mock_post = mocker.Mock(return_value=mock_response)
+    mocker.patch(
+        "mizu_common.google_oauth_client.requests.post", return_value=mock_response
+    )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient(
-        "client_id", "invalid_refresh_token", scopes, http_post=mock_post
-    )
+    client = GoogleOAuthClient("client_id", "invalid_refresh_token", scopes)
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="アクセストークンの取得に失敗しました"):
@@ -83,12 +83,12 @@ def test_get_access_token_caches_token(mocker: Any) -> None:
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"access_token": "cached_token"}
-    mock_post = mocker.Mock(return_value=mock_response)
+    mock_post = mocker.patch(
+        "mizu_common.google_oauth_client.requests.post", return_value=mock_response
+    )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient(
-        "client_id", "refresh_token", scopes, http_post=mock_post
-    )
+    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
 
     # Act
     token1 = client.get_access_token()
