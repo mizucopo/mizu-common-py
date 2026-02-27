@@ -54,9 +54,7 @@ class YouTubeClient:
                 timeout=30,
             )
         except requests.exceptions.RequestException as e:
-            raise YouTubeNetworkError(
-                f"APIリクエストに失敗しました: {e}", cause=e
-            ) from e
+            raise YouTubeNetworkError(f"APIリクエストに失敗しました: {e}") from e
 
         if response.status_code != 200:
             raise YouTubeHttpError(

@@ -115,7 +115,7 @@ def test_get_video_details_raises_network_error(
     with pytest.raises(YouTubeNetworkError) as exc_info:
         client.get_video_details("test_video_id")
 
-    assert exc_info.value.cause == original_error
+    assert exc_info.value.__cause__ == original_error
 
 
 def test_make_request_raises_http_error_on_non_200(
@@ -170,7 +170,7 @@ def test_make_request_raises_network_error_on_connection_failure(
     with pytest.raises(YouTubeNetworkError) as exc_info:
         client._make_request("videos", {"id": "test_id"})
 
-    assert exc_info.value.cause == original_error
+    assert exc_info.value.__cause__ == original_error
 
 
 def test_get_live_archives_returns_videos(
@@ -276,7 +276,7 @@ def test_get_live_archives_raises_network_error(
     with pytest.raises(YouTubeNetworkError) as exc_info:
         client.get_live_archives("test_channel_id")
 
-    assert exc_info.value.cause == original_error
+    assert exc_info.value.__cause__ == original_error
 
 
 def test_iter_live_archives_yields_videos(
@@ -460,7 +460,7 @@ def test_iter_live_archives_raises_network_error(
     with pytest.raises(YouTubeNetworkError) as exc_info:
         next(client.iter_live_archives("test_channel_id"))
 
-    assert exc_info.value.cause == original_error
+    assert exc_info.value.__cause__ == original_error
 
 
 def test_iter_live_archives_raises_error_on_second_page(
