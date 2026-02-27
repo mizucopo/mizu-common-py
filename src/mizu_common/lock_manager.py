@@ -82,7 +82,8 @@ class LockManager:
         # ロックファイルが存在する場合はエラー
         if self._lock_path.exists():
             raise AlreadyRunningError(
-                f"Another instance is already running. Lock file: {self._lock_path}"
+                f"Another instance is already running. Lock file: {self._lock_path}",
+                lock_path=self._lock_path,
             )
 
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +94,10 @@ class LockManager:
                 portalocker.lock(lock_file, flags)
                 yield
             except portalocker.exceptions.AlreadyLocked as e:
-                raise AlreadyRunningError("Another instance is already running") from e
+                raise AlreadyRunningError(
+                    "Another instance is already running",
+                    lock_path=self._lock_path,
+                ) from e
             finally:
                 portalocker.unlock(lock_file)
                 with suppress(OSError):
