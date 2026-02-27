@@ -1,6 +1,6 @@
 [project]
 name = "mizu-common-py"
-version = "1.1.0"
+version = "2.0.0"
 description = "Python用共通ライブラリ"
 authors = [
     {name = "みず", email = "mizu.copo@gmail.com"}
@@ -10,8 +10,9 @@ requires-python = ">=3.14"
 dependencies = [
     "google-api-python-client>=2.100.0",
     "google-auth>=2.23.0",
-    "requests>=2.31.0",
+    "portalocker>=3.0.0",
     "python-decouple>=3.8",
+    "requests>=2.31.0",
 ]
 
 [dependency-groups]
@@ -54,7 +55,7 @@ convention = "google"
 [tool.mypy]
 strict = true
 python_version = "3.14"
-files = ["src", "tests"]
+files = ["src", "tests", "examples"]
 mypy_path = "src:stubs"
 explicit_package_bases = true
 
@@ -63,7 +64,7 @@ module = ["google.*", "googleapiclient.*"]
 ignore_missing_imports = true
 
 [tool.taskipy.tasks]
-test = "ruff check --fix src tests stubs && ruff format src tests stubs && mypy && pytest"
+test = "ruff check --fix src tests stubs examples && ruff format src tests stubs examples && mypy && pytest"
 
 [build-system]
 requires = ["hatchling"]
