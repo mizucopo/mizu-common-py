@@ -1,13 +1,13 @@
 """Google Drive アップロードプロバイダモジュール。"""
 
 import logging
-import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
-import requests
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
+from mizu_common.constants.google_scope import GoogleScope
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +20,13 @@ class GoogleDriveProvider:
 
     CHUNK_SIZE = 100 * 1024 * 1024
     MAX_RETRIES = 5
-    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-    DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
-    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    SCOPES = [GoogleScope.DRIVE_FILE]
 
     def __init__(
         self,
         folder_id: str,
         credentials: credentials.Credentials,
-        drive_service: Optional[Any] = None,
+        drive_service: Any | None = None,
     ) -> None:
         """Google Drive アップロードプロバイダ。
 
@@ -170,7 +168,7 @@ class GoogleDriveProvider:
             )
             raise
 
-    def _search_for_file(self, filename: str) -> Optional[str]:
+    def _search_for_file(self, filename: str) -> str | None:
         """Google Drive フォルダ内で同名ファイルを検索する。
 
         Args:
@@ -216,133 +214,3 @@ class GoogleDriveProvider:
         except Exception as e:
             logger.error(f"Failed to search for existing file '{filename}': {str(e)}")
             raise
-
-    @staticmethod
-    def authenticate(
-        client_id: str,
-        client_secret: str,
-        output_handler: Optional[Callable[[str], None]] = None,
-        http_post: Any = requests.post,
-    ) -> Optional[str]:
-        """OAuth 2.0 Device Flow を実行してリフレッシュトークンを取得する。
-
-        Args:
-            client_id: OAuth クライアント ID
-            client_secret: OAuth クライアントシークレット
-            output_handler: 出力ハンドラー（デフォルト: print）
-            http_post: HTTP POST 関数（テスト用）
-
-        Returns:
-            リフレッシュトークン（成功時）、None（失敗時）
-        """
-        _output_handler = print if output_handler is None else output_handler
-
-        device_code_data = GoogleDriveProvider._get_device_code(client_id, http_post)
-        if not device_code_data:
-            return None
-
-        device_code = device_code_data["device_code"]
-        user_code = device_code_data["user_code"]
-        verification_url = device_code_data["verification_url"]
-        interval = device_code_data.get("interval", 5)
-        expires_in = device_code_data["expires_in"]
-
-        _output_handler(f"\n1. Open your browser and go to: {verification_url}")
-        _output_handler(f"2. Enter the following code: {user_code}")
-        wait_msg = f"\nWaiting for authentication (expires in {expires_in} seconds)..."
-        _output_handler(wait_msg)
-
-        return GoogleDriveProvider._poll_for_token(
-            device_code, client_id, client_secret, interval, expires_in, http_post
-        )
-
-    @staticmethod
-    def _get_device_code(
-        client_id: str, http_post: Any = requests.post
-    ) -> Optional[Dict[str, Any]]:
-        """Google からデバイスコードを要求する（HTTP クライアント注入）。
-
-        Args:
-            client_id: OAuth クライアント ID
-            http_post: HTTP POST 関数（デフォルト: requests.post）
-
-        Returns:
-            デバイスコードレスポンスデータ、失敗時は None
-        """
-        payload = {"client_id": client_id, "scope": GoogleDriveProvider.SCOPES[0]}
-        try:
-            response = http_post(GoogleDriveProvider.DEVICE_CODE_URL, data=payload)
-            response.raise_for_status()
-            data: Dict[str, Any] = response.json()
-            return data
-        except Exception as e:
-            logger.error(f"Failed to get device code: {e}")
-            return None
-
-    @staticmethod
-    def _poll_for_token(
-        device_code: str,
-        client_id: str,
-        client_secret: str,
-        interval: int,
-        expires_in: int,
-        http_post: Any = requests.post,
-    ) -> Optional[str]:
-        """トークンエンドポイントをポーリングする（HTTP クライアント注入）。
-
-        Args:
-            device_code: Google のデバイスコード
-            client_id: OAuth クライアント ID
-            client_secret: OAuth クライアントシークレット
-            interval: ポーリング間隔（秒）
-            expires_in: 有効期限（秒）
-            http_post: HTTP POST 関数（デフォルト: requests.post）
-
-        Returns:
-            リフレッシュトークン（成功時）、None（失敗時）
-        """
-        start_time = time.time()
-        payload = {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "device_code": device_code,
-            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-        }
-
-        while time.time() - start_time < expires_in:
-            try:
-                response = http_post(GoogleDriveProvider.TOKEN_URL, data=payload)
-                data: Dict[str, Any] = response.json()
-
-                if response.status_code == 200:
-                    refresh_token = data.get("refresh_token")
-                    if refresh_token:
-                        return str(refresh_token)
-                    logger.error("No refresh token in successful response.")
-                    return None
-
-                error = data.get("error")
-                if error == "slow_down":
-                    interval += 5
-                    logger.debug(f"Slow down requested, new interval: {interval}s")
-                elif error == "access_denied":
-                    logger.error("Authentication was denied by the user.")
-                    return None
-                elif error == "expired_token":
-                    logger.error("The device code has expired.")
-                    return None
-                elif error == "authorization_pending":
-                    # ユーザーがまだ承認していない、ポーリング継続
-                    logger.debug(f"Polling status: {error}")
-                elif error is not None:
-                    # 未知のエラーは即失敗
-                    logger.error(f"Authentication failed: {error}")
-                    return None
-            except Exception as e:
-                logger.error(f"Polling failed: {e}")
-                return None
-
-            time.sleep(interval)
-
-        logger.error("Authentication timed out.")
-        return None

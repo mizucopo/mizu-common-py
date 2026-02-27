@@ -1,10 +1,10 @@
-"""DirectoryBackupのテスト。"""
+"""BackupManagerのテスト。"""
 
 import tempfile
 import zipfile
 from pathlib import Path
 
-from mizu_common.directory_backup import DirectoryBackup
+from mizu_common.backup_manager import BackupManager
 
 
 def test_creates_zip_archive_from_source_directory() -> None:
@@ -15,7 +15,7 @@ def test_creates_zip_archive_from_source_directory() -> None:
         - 空ディレクトリも含まれる
 
     When:
-        - DirectoryBackup.backup() を実行
+        - BackupManager.backup() を実行
 
     Then:
         - zipアーカイブが作成される
@@ -36,7 +36,7 @@ def test_creates_zip_archive_from_source_directory() -> None:
         backup_dir = Path(temp_dir) / "backup"
         backup_path = backup_dir / "archive.zip"
 
-        backup = DirectoryBackup(src_dirpath=str(src_dir))
+        backup = BackupManager(src_dirpath=str(src_dir))
 
         # Act: バックアップを実行
         backup.backup(str(backup_path))
