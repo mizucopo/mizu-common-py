@@ -32,7 +32,7 @@ def test_get_access_token_caches_token(mocker: Any) -> None:
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
+    client = GoogleOAuthClient("client_id", "client_secret", "refresh_token", scopes)
 
     # Act
     token1 = client.get_access_token()
@@ -65,7 +65,9 @@ def test_get_access_token_raises_error_on_failure(mocker: Any) -> None:
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
-    client = GoogleOAuthClient("client_id", "invalid_refresh_token", scopes)
+    client = GoogleOAuthClient(
+        "client_id", "client_secret", "invalid_refresh_token", scopes
+    )
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="アクセストークンの取得に失敗しました"):
@@ -94,7 +96,7 @@ def test_get_access_token_force_refresh(mocker: Any) -> None:
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
+    client = GoogleOAuthClient("client_id", "client_secret", "refresh_token", scopes)
     # 最初のトークン取得
     client.get_access_token()
 
@@ -143,7 +145,7 @@ def test_refresh_on_unauthorized(
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
+    client = GoogleOAuthClient("client_id", "client_secret", "refresh_token", scopes)
 
     call_count = 0
 
@@ -185,7 +187,7 @@ def test_refresh_on_unauthorized_raises_on_non_401(mocker: Any) -> None:
     mock_post = mocker.patch("mizu_common.google_oauth_client.requests.post")
 
     scopes = [GoogleScope.YOUTUBE_READONLY]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
+    client = GoogleOAuthClient("client_id", "client_secret", "refresh_token", scopes)
 
     def api_call() -> str:
         mock_error_response = Mock()
@@ -224,7 +226,7 @@ def test_refresh_on_unauthorized_raises_on_second_failure(mocker: Any) -> None:
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY]
-    client = GoogleOAuthClient("client_id", "refresh_token", scopes)
+    client = GoogleOAuthClient("client_id", "client_secret", "refresh_token", scopes)
 
     call_count = 0
 

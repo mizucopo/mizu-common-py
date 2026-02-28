@@ -26,6 +26,7 @@ class GoogleOAuthClient:
     def __init__(
         self,
         oauth_client_id: str,
+        oauth_client_secret: str,
         refresh_token: str,
         scopes: Sequence[str],
     ) -> None:
@@ -33,10 +34,12 @@ class GoogleOAuthClient:
 
         Args:
             oauth_client_id: Google OAuth Client ID
+            oauth_client_secret: Google OAuth Client Secret
             refresh_token: OAuth Refresh Token
             scopes: 要求するGoogle APIスコープのリスト
         """
         self._oauth_client_id = oauth_client_id
+        self._oauth_client_secret = oauth_client_secret
         self._refresh_token = refresh_token
         self._scopes = scopes
         self._access_token: str | None = None
@@ -77,6 +80,7 @@ class GoogleOAuthClient:
             self.TOKEN_URL,
             data={
                 "client_id": self._oauth_client_id,
+                "client_secret": self._oauth_client_secret,
                 "refresh_token": self._refresh_token,
                 "grant_type": "refresh_token",
             },
