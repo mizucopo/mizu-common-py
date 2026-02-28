@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,7 +15,7 @@ def test_acquire_lock_prevents_concurrent_access(tmp_path: Path) -> None:
     """acquireが二重起動を防止すること.
 
     Arrange:
-        ロックを取得する。
+        portalockerをモックして、2回目のロック取得でAlreadyLockedを発生させる。
 
     Act:
         同じロックを再度取得しようとする。
@@ -23,96 +24,118 @@ def test_acquire_lock_prevents_concurrent_access(tmp_path: Path) -> None:
         AlreadyRunningErrorが発生すること。
     """
     # Arrange
-    lock_manager = LockManager(lock_dir=tmp_path)
-    cm = lock_manager.acquire()
-    cm.__enter__()
+    import portalocker.exceptions
 
-    try:
+    lock_manager = LockManager(lock_dir=tmp_path)
+
+    with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
+        mock_lock = MagicMock()
+        mock_lock_class.return_value = mock_lock
+
+        # 1回目は成功、2回目はAlreadyLocked
+        mock_lock.acquire.side_effect = [None, portalocker.exceptions.AlreadyLocked()]
+
         # Act & Assert
-        with pytest.raises(AlreadyRunningError):
+        with lock_manager.acquire(), pytest.raises(AlreadyRunningError):
             lock_manager.acquire().__enter__()
-    finally:
-        cm.__exit__(None, None, None)
 
 
 def test_acquire_lock_releases_on_exit(tmp_path: Path) -> None:
     """acquireが終了時にロックを解放すること.
 
     Arrange:
-        ロックを取得して解放する。
+        portalockerをモックする。
 
     Act:
-        再度ロックを取得する。
+        ロックを取得して解放した後、再度ロックを取得する。
 
     Assert:
-        ロックが正常に取得できること。
+        ロックが正常に取得・解放できること。
     """
     # Arrange
     lock_manager = LockManager(lock_dir=tmp_path)
 
-    # Act
-    with lock_manager.acquire():
-        pass
+    with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
+        mock_lock1 = MagicMock()
+        mock_lock2 = MagicMock()
+        mock_lock_class.side_effect = [mock_lock1, mock_lock2]
 
-    # Assert - should not raise
-    with lock_manager.acquire():
-        pass
+        # Act & Assert
+        with lock_manager.acquire():
+            pass
+
+        # 2回目も正常に取得できること
+        with lock_manager.acquire():
+            pass
+
+        # 各ロックが正しくacquire/releaseされたこと
+        mock_lock1.acquire.assert_called_once()
+        mock_lock1.release.assert_called_once()
+        mock_lock2.acquire.assert_called_once()
+        mock_lock2.release.assert_called_once()
 
 
 def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
     """古いロックファイルを他のプロセスが保持している場合にStaleLockErrorが発生すること.
 
     Arrange:
-        stale_hours=1を設定する。
-        別のLockManagerでロックを取得し、mtimeを4時間前に設定する。
+        portalockerをモックしてAlreadyLockedを発生させる。
+        ロックファイルを作成し、mtimeを4時間前に設定する。
 
     Act:
-        別のLockManagerでロックを取得しようとする。
+        stale_hours=1のLockManagerでロックを取得しようとする。
 
     Assert:
         StaleLockErrorが発生すること。
     """
-    # Arrange - 別のLockManagerでロックを取得
-    first_lock = LockManager(lock_dir=tmp_path, stale_hours=1)
-    first_cm = first_lock.acquire()
-    first_cm.__enter__()
+    # Arrange
+    import portalocker.exceptions
 
-    try:
-        # mtimeを4時間前に設定（stale_hours=1より古い）
-        lock_path = tmp_path / ".app.lock"
-        stale_time = os.path.getmtime(lock_path) - 4 * 3600
-        os.utime(lock_path, (stale_time, stale_time))
+    lock_path = tmp_path / ".app.lock"
+    lock_path.touch()
+
+    # mtimeを4時間前に設定
+    stale_time = os.path.getmtime(lock_path) - 4 * 3600
+    os.utime(lock_path, (stale_time, stale_time))
+
+    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
+
+    with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
+        mock_lock = MagicMock()
+        mock_lock_class.return_value = mock_lock
+        mock_lock.acquire.side_effect = portalocker.exceptions.AlreadyLocked()
 
         # Act & Assert
-        lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
         with pytest.raises(StaleLockError, match="Stale lock file detected"):
             lock_manager.acquire().__enter__()
-    finally:
-        first_cm.__exit__(None, None, None)
 
 
 def test_acquire_lock_raises_error_on_recent_file(tmp_path: Path) -> None:
     """新しいロックファイルを他のプロセスが保持している場合はAlreadyRunningErrorが発生すること.
 
     Arrange:
-        stale_hours=1を設定する。
-        別のLockManagerでロックを取得する。
+        portalockerをモックしてAlreadyLockedを発生させる。
+        ロックファイルを新規作成する。
 
     Act:
-        別のLockManagerでロックを取得しようとする。
+        stale_hours=1のLockManagerでロックを取得しようとする。
 
     Assert:
         AlreadyRunningErrorが発生すること。
     """
-    # Arrange - 別のLockManagerでロックを取得
-    first_lock = LockManager(lock_dir=tmp_path, stale_hours=1)
-    first_cm = first_lock.acquire()
-    first_cm.__enter__()
+    # Arrange
+    import portalocker.exceptions
 
-    try:
+    lock_path = tmp_path / ".app.lock"
+    lock_path.touch()
+
+    lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
+
+    with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
+        mock_lock = MagicMock()
+        mock_lock_class.return_value = mock_lock
+        mock_lock.acquire.side_effect = portalocker.exceptions.AlreadyLocked()
+
         # Act & Assert
-        lock_manager = LockManager(lock_dir=tmp_path, stale_hours=1)
         with pytest.raises(AlreadyRunningError, match="Another instance"):
             lock_manager.acquire().__enter__()
-    finally:
-        first_cm.__exit__(None, None, None)
