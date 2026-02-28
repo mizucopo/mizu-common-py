@@ -1,6 +1,6 @@
 [project]
 name = "mizu-common-py"
-version = "2.0.0"
+version = "2.1.0"
 description = "Python用共通ライブラリ"
 authors = [
     {name = "みず", email = "mizu.copo@gmail.com"}
@@ -9,22 +9,22 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "google-api-python-client>=2.100.0",
+    "google-api-python-client-stubs>=1.32.0",
     "google-auth>=2.23.0",
     "portalocker>=3.0.0",
     "python-decouple>=3.8",
+    "python-decouple-stubs>=0.1",
     "requests>=2.31.0",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [dependency-groups]
 dev = [
-    "google-api-python-client-stubs>=1.32.0",
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-mock>=3.15.1",
-    "python-decouple-stubs>=0.1",
     "ruff>=0.14.10",
     "taskipy>=1.14.1",
-    "types-requests>=2.32.4.20250913",
     "vulture>=2.14",
 ]
 
@@ -56,15 +56,11 @@ convention = "google"
 strict = true
 python_version = "3.14"
 files = ["src", "tests", "examples"]
-mypy_path = "src:stubs"
+mypy_path = "src"
 explicit_package_bases = true
 
-[[tool.mypy.overrides]]
-module = ["google.*", "googleapiclient.*"]
-ignore_missing_imports = true
-
 [tool.taskipy.tasks]
-test = "ruff check --fix src tests stubs examples && ruff format src tests stubs examples && mypy && pytest"
+test = "ruff check --fix src tests examples && ruff format src tests examples && mypy && pytest"
 
 [build-system]
 requires = ["hatchling"]
