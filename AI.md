@@ -226,6 +226,54 @@ GoogleScope.DRIVE_FILE        # "https://www.googleapis.com/auth/drive.file"
 | `YouTubeNetworkError` | ネットワーク/タイムアウトエラー | - |
 | `StaleLockError` | ロックファイルが `stale_hours` 時間より古い | - |
 | `AlreadyRunningError` | 他のプロセスがロックを保持 | `lock_path: Path \| None` |
+| `DiscordWebhookError` | Discord Webhookへのリクエストが失敗 | - |
+
+---
+
+### DiscordClient
+
+Discord Webhookを使用したメッセージ送信機能を提供します。
+
+```python
+from mizu_common import DiscordClient, DiscordEmbed
+
+client = DiscordClient(webhook_url="https://discord.com/api/webhooks/...")
+
+# テキストメッセージを送信
+client.send_message("処理が完了しました")
+
+# Embedメッセージを送信
+embed = DiscordEmbed(
+    title="バックアップ完了",
+    description="データのバックアップが正常に完了しました",
+    color=0x00FF00,  # 緑色
+)
+client.send_embed(embed)
+```
+
+- `__init__(webhook_url: str)` - Webhook URLでクライアントを初期化
+- `send_message(content, username=None, avatar_url=None) -> None` - テキストメッセージを送信
+  - 失敗時 `DiscordWebhookError` を送出
+- `send_embed(embed, username=None, avatar_url=None) -> None` - Embedメッセージを送信
+  - 失敗時 `DiscordWebhookError` を送出
+- `send_embeds(embeds, username=None, avatar_url=None) -> None` - 複数のEmbedを送信
+  - Embed数が10を超える場合 `ValueError` を送出
+  - 失敗時 `DiscordWebhookError` を送出
+
+---
+
+### DiscordEmbed (dataclass)
+
+```python
+from mizu_common import DiscordEmbed
+
+embed = DiscordEmbed(
+    title="タイトル",           # 必須
+    description="説明文",       # オプション
+    color=0x00FF00,            # オプション: 色（10進数）
+    url="https://example.com", # オプション: タイトルのリンク先
+)
+```
 
 ---
 
@@ -336,6 +384,25 @@ logger.debug("デバッグメッセージ")
 logger.info("情報メッセージ")
 ```
 
+### 6. Discord通知
+
+```python
+from mizu_common import DiscordClient, DiscordEmbed
+
+client = DiscordClient(webhook_url="https://discord.com/api/webhooks/...")
+
+# テキストメッセージ
+client.send_message("処理が完了しました", username="通知ボット")
+
+# Embedメッセージ
+embed = DiscordEmbed(
+    title="バックアップ完了",
+    description="データのバックアップが正常に完了しました",
+    color=0x00FF00,
+)
+client.send_embed(embed)
+```
+
 ---
 
 ## アンチパターン / 落とし穴
@@ -414,4 +481,12 @@ uv run mypy examples/
 uv run python examples/example_logging.py
 uv run python examples/example_backup.py
 uv run python examples/example_lock.py
+```
+
+### サンプルの実行（環境変数が必要）
+
+```bash
+# Discord通知
+export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
+uv run python examples/example_discord.py
 ```
