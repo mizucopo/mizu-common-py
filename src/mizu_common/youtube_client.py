@@ -92,6 +92,7 @@ class YouTubeClient:
                 "maxResults": "50",
                 "type": "video",
                 "eventType": "completed",
+                "order": "date",
             }
 
             if next_page_token:
