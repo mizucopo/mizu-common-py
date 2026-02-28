@@ -282,48 +282,48 @@ wheels = [
 
 [[package]]
 name = "mizu-common-py"
-version = "2.0.0"
+version = "2.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },
+    { name = "google-api-python-client-stubs" },
     { name = "google-auth" },
     { name = "portalocker" },
     { name = "python-decouple" },
+    { name = "python-decouple-stubs" },
     { name = "requests" },
+    { name = "types-requests" },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "google-api-python-client-stubs" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-mock" },
-    { name = "python-decouple-stubs" },
     { name = "ruff" },
     { name = "taskipy" },
-    { name = "types-requests" },
     { name = "vulture" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "google-api-python-client", specifier = ">=2.100.0" },
+    { name = "google-api-python-client-stubs", specifier = ">=1.32.0" },
     { name = "google-auth", specifier = ">=2.23.0" },
     { name = "portalocker", specifier = ">=3.0.0" },
     { name = "python-decouple", specifier = ">=3.8" },
+    { name = "python-decouple-stubs", specifier = ">=0.1" },
     { name = "requests", specifier = ">=2.31.0" },
+    { name = "types-requests", specifier = ">=2.32.4.20250913" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "google-api-python-client-stubs", specifier = ">=1.32.0" },
     { name = "mypy", specifier = ">=1.19.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
-    { name = "python-decouple-stubs", specifier = ">=0.1" },
     { name = "ruff", specifier = ">=0.14.10" },
     { name = "taskipy", specifier = ">=1.14.1" },
-    { name = "types-requests", specifier = ">=2.32.4.20250913" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 
