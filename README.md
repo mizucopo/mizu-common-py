@@ -16,9 +16,14 @@ Python用共通ライブラリ。
 - **LockManager**: ファイルロックによる二重起動防止（stale lock検出対応）
 - **LoggingConfigurator**: アプリケーション全体のログ設定管理
 
+### Discord連携
+
+- **DiscordClient**: Discord Webhookを使用したメッセージ・Embed送信
+
 ### データモデル
 
 - **YouTubeVideoInfo**: YouTube動画情報を表すデータクラス
+- **DiscordEmbed**: Discord Embedメッセージを構築するデータクラス
 
 ### 定数
 
