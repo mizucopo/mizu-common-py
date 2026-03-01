@@ -10,16 +10,16 @@ from mizu_common.backup_manager import BackupManager
 def test_creates_zip_archive_from_source_directory() -> None:
     """ソースディレクトリの全ファイルを含むzipアーカイブが作成されること.
 
-    Given:
-        - ソースディレクトリに複数のファイルとサブディレクトリが存在する
-        - 空ディレクトリも含まれる
+    Arrange:
+        ソースディレクトリに複数のファイルとサブディレクトリを用意する。
+        空ディレクトリも含める。
 
-    When:
-        - BackupManager.backup() を実行
+    Act:
+        BackupManager.backup()を実行する。
 
-    Then:
-        - zipアーカイブが作成される
-        - アーカイブにすべてのファイルとサブディレクトリ内のファイルが含まれる
+    Assert:
+        zipアーカイブが作成されること。
+        アーカイブにすべてのファイルとサブディレクトリ内のファイルが含まれること。
     """
     # Arrange: サンプルファイルを含む一時ソースディレクトリを作成
     with tempfile.TemporaryDirectory() as temp_dir:

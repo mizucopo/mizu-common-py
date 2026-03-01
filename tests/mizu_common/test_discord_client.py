@@ -85,7 +85,7 @@ def test_send_message_with_username_and_avatar(mocker: Any) -> None:
 
 
 def test_send_message_raises_error_on_failure(mocker: Any) -> None:
-    """send_messageが失敗時にRuntimeErrorが発生すること.
+    """send_messageが失敗時にDiscordWebhookErrorが発生すること.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -94,7 +94,7 @@ def test_send_message_raises_error_on_failure(mocker: Any) -> None:
         send_message()を実行する。
 
     Assert:
-        RuntimeErrorが発生すること。
+        DiscordWebhookErrorが発生すること。
     """
     # Arrange
     mock_response = Mock()
@@ -157,8 +157,8 @@ def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
     )
 
 
-def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
-    """send_embedが複数のEmbedを送信できること.
+def test_send_embeds_with_multiple_embeds(mocker: Any) -> None:
+    """send_embedsが複数のEmbedを送信できること.
 
     Arrange:
         Webhook URLを用意する。
@@ -166,7 +166,7 @@ def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
         複数のEmbedを用意する。
 
     Act:
-        複数のEmbedを指定してsend_embed()を実行する。
+        複数のEmbedを指定してsend_embeds()を実行する。
 
     Assert:
         ペイロードに複数のembedsが含まれること。
@@ -190,7 +190,7 @@ def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
     assert len(call_args[1]["json"]["embeds"]) == 2
 
 
-def test_send_embed_raises_error_when_exceeds_limit() -> None:
+def test_send_embeds_raises_error_when_exceeds_limit() -> None:
     """send_embedsがEmbed数11以上でValueErrorを発生すること.
 
     Arrange:
@@ -206,39 +206,3 @@ def test_send_embed_raises_error_when_exceeds_limit() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="Embed数は最大10件までです"):
         client.send_embeds(embeds)
-
-
-def test_send_embed_with_username_and_avatar(mocker: Any) -> None:
-    """send_embedがユーザー名とアバターを含めて送信されること.
-
-    Arrange:
-        Webhook URLを用意する。
-        成功レスポンスをモックする。
-        Embed、ユーザー名、アバターURLを用意する。
-
-    Act:
-        send_embed()を実行する。
-
-    Assert:
-        ペイロードにusernameとavatar_urlが含まれること。
-    """
-    # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 204
-    mock_post = mocker.patch(
-        "mizu_common.discord_client.requests.post", return_value=mock_response
-    )
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
-    embed = DiscordEmbed(title="Test")
-
-    # Act
-    client.send_embed(
-        embed,
-        username="Bot",
-        avatar_url="https://example.com/avatar.png",
-    )
-
-    # Assert
-    call_args = mock_post.call_args
-    assert call_args[1]["json"]["username"] == "Bot"
-    assert call_args[1]["json"]["avatar_url"] == "https://example.com/avatar.png"

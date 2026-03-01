@@ -47,7 +47,7 @@ class GoogleDriveProvider:
         credentials: credentials.Credentials,
         drive_service: Any | None = None,
     ) -> None:
-        """Google Drive アップロードプロバイダ。
+        """Google Drive アップロードプロバイダを初期化する。
 
         Args:
             folder_id: Google Drive フォルダ ID

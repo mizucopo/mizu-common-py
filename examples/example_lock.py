@@ -76,8 +76,8 @@ def main() -> None:
         print(f"自動解放後: {lock.is_locked()}")
 
         # release()は緊急時やクリーンアップ用
-        released = lock.release()
-        print(f"手動release()の結果: {released}")
+        lock.release()
+        print("手動release()を実行")
 
         # 5. エラーハンドリングの例
         print("\n--- 5. エラーハンドリング例 ---")

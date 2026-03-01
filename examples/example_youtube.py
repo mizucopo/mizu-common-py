@@ -2,7 +2,7 @@
 
 この例は以下を示します:
 - GoogleOAuthClientとYouTubeClientの連携
-- ライブアーカイブの一覧取得
+- チャンネルの全動画一覧取得
 - YouTubeVideoInfoデータクラスの使用
 
 実行方法:
@@ -73,11 +73,11 @@ def main() -> None:
     youtube = YouTubeClient(oauth_client)
 
     try:
-        # ライブアーカイブを取得（イテレータを使用）
-        print(f"チャンネル {channel_id} のライブアーカイブを取得中...\n")
+        # チャンネルの全動画を取得（イテレータを使用）
+        print(f"チャンネル {channel_id} の動画を取得中...\n")
 
         count = 0
-        for video in youtube.iter_live_archives(channel_id):
+        for video in youtube.iter_channel_videos(channel_id):
             count += 1
             print(f"[{video.video_id}] {video.title}")
             dt_str = video.published_at.strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -91,7 +91,7 @@ def main() -> None:
                 break
 
         if count == 0:
-            print("ライブアーカイブが見つかりませんでした")
+            print("動画が見つかりませんでした")
 
     except YouTubeHttpError as e:
         print(f"HTTP エラーが発生しました (status={e.status_code}): {e}")

@@ -100,6 +100,7 @@ from mizu_common import GoogleOAuthClient, GoogleScope
 
 client = GoogleOAuthClient(
     oauth_client_id="YOUR_CLIENT_ID",
+    oauth_client_secret="YOUR_CLIENT_SECRET",
     refresh_token="YOUR_REFRESH_TOKEN",
     scopes=[GoogleScope.YOUTUBE_READONLY],
 )
@@ -108,7 +109,7 @@ access_token = client.get_access_token()
 headers = client.get_headers()  # {"Authorization": "Bearer <token>"}
 ```
 
-- `__init__(oauth_client_id: str, refresh_token: str, scopes: Sequence[str])`
+- `__init__(oauth_client_id: str, oauth_client_secret: str, refresh_token: str, scopes: Sequence[str])`
 - `get_access_token(force_refresh: bool = False) -> str` - アクセストークンを取得（キャッシュあり）
   - 失敗時 `RuntimeError` を送出
 - `get_headers() -> dict[str, str]` - Authorizationヘッダーを含む辞書を返す
@@ -172,7 +173,7 @@ provider.upload(source_path="/local/file.zip", destination_filename="backups/202
 
 ### YouTubeClient
 
-ライブアーカイブ向けのYouTube Data API v3クライアントです。
+チャンネルの全動画（ライブ含む）を取得するYouTube Data API v3クライアントです。
 
 ```python
 from mizu_common import YouTubeClient, GoogleOAuthClient, GoogleScope
@@ -184,19 +185,21 @@ oauth = GoogleOAuthClient(
 )
 client = YouTubeClient(oauth)
 
-# 全ライブアーカイブを取得（遅延イテレータ）
-for video in client.iter_live_archives(channel_id="CHANNEL_ID"):
+# チャンネルの全動画を取得（遅延イテレータ）
+for video in client.iter_channel_videos(channel_id="CHANNEL_ID"):
     print(f"{video.title} - {video.video_id}")
 
 # またはリストとして取得
-videos = client.get_live_archives(channel_id="CHANNEL_ID")
+videos = client.get_channel_videos(channel_id="CHANNEL_ID")
 ```
 
 - `__init__(oauth_client: GoogleOAuthClient)`
-- `iter_live_archives(channel_id: str) -> Iterator[YouTubeVideoInfo]` - 遅延イテレータ
+- `iter_channel_videos(channel_id: str, published_after: datetime | None = None) -> Iterator[YouTubeVideoInfo]` - 遅延イテレータ
+  - `published_after` を指定すると、その日時より後の動画のみ取得（古い動画に達したら終了）
   - ネットワークエラー時 `YouTubeNetworkError` を送出
   - HTTPエラー時 `YouTubeHttpError` を送出（`status_code` 属性付き）
-- `get_live_archives(channel_id: str) -> list[YouTubeVideoInfo]` - 即時リスト取得
+  - チャンネルが見つからない場合 `ValueError` を送出
+- `get_channel_videos(channel_id: str, published_after: datetime | None = None) -> list[YouTubeVideoInfo]` - 即時リスト取得
 - `get_video_details(video_id: str) -> YouTubeVideoInfo | None` - 単一動画の取得
 
 **必要なスコープ**: `GoogleScope.YOUTUBE_READONLY`
@@ -341,19 +344,20 @@ except AlreadyRunningError:
     sys.exit("他のインスタンスが既に実行中です")
 ```
 
-### 3. YouTubeライブアーカイブの取得
+### 3. YouTubeチャンネル動画の取得
 
 ```python
 from mizu_common import YouTubeClient, GoogleOAuthClient, GoogleScope
 
 oauth = GoogleOAuthClient(
     oauth_client_id="CLIENT_ID",
+    oauth_client_secret="CLIENT_SECRET",
     refresh_token="REFRESH_TOKEN",
     scopes=[GoogleScope.YOUTUBE_READONLY],
 )
 client = YouTubeClient(oauth)
 
-for video in client.iter_live_archives("CHANNEL_ID"):
+for video in client.iter_channel_videos("CHANNEL_ID"):
     print(f"[{video.video_id}] {video.title}")
     print(f"  公開日時: {video.published_at}")
     print(f"  長さ: {video.duration}")
@@ -444,11 +448,11 @@ LoggingConfigurator(level=logging.DEBUG)  # レベルはINFOのまま
 LoggingConfigurator(level=logging.DEBUG, force=True)
 ```
 
-### iter_live_archives: 遅延例外の伝播
+### iter_channel_videos: 遅延例外の伝播
 
 ```python
 # 例外は呼び出し時ではなく、イテレーション中に送出される可能性がある
-for video in client.iter_live_archives(channel_id):
+for video in client.iter_channel_videos(channel_id):
     # 2ページ目以降の取得に失敗した場合、
     # ここでYouTubeHttpError/YouTubeNetworkErrorが送出される
     pass
