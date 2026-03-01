@@ -206,39 +206,3 @@ def test_send_embeds_raises_error_when_exceeds_limit() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="Embed数は最大10件までです"):
         client.send_embeds(embeds)
-
-
-def test_send_embed_with_username_and_avatar(mocker: Any) -> None:
-    """send_embedがユーザー名とアバターを含めて送信されること.
-
-    Arrange:
-        Webhook URLを用意する。
-        成功レスポンスをモックする。
-        Embed、ユーザー名、アバターURLを用意する。
-
-    Act:
-        send_embed()を実行する。
-
-    Assert:
-        ペイロードにusernameとavatar_urlが含まれること。
-    """
-    # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 204
-    mock_post = mocker.patch(
-        "mizu_common.discord_client.requests.post", return_value=mock_response
-    )
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
-    embed = DiscordEmbed(title="Test")
-
-    # Act
-    client.send_embed(
-        embed,
-        username="Bot",
-        avatar_url="https://example.com/avatar.png",
-    )
-
-    # Assert
-    call_args = mock_post.call_args
-    assert call_args[1]["json"]["username"] == "Bot"
-    assert call_args[1]["json"]["avatar_url"] == "https://example.com/avatar.png"

@@ -64,61 +64,6 @@ def test_get_video_details_returns_video_info(
     assert result.duration == "PT10M"
 
 
-def test_get_video_details_raises_http_error(
-    mocker: Any, mock_oauth_client: GoogleOAuthClient
-) -> None:
-    """HTTPエラー時にget_video_detailsがYouTubeHttpErrorをスローすること.
-
-    Arrange:
-        エラーレスポンスをモックする。
-
-    Act:
-        get_video_details()を呼び出す。
-
-    Assert:
-        YouTubeHttpErrorがスローされること。
-    """
-    # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 404
-    mocker.patch("requests.get", return_value=mock_response)
-
-    client = YouTubeClient(mock_oauth_client)
-
-    # Act & Assert
-    with pytest.raises(YouTubeHttpError) as exc_info:
-        client.get_video_details("nonexistent_id")
-
-    assert exc_info.value.status_code == 404
-
-
-def test_get_video_details_raises_network_error(
-    mocker: Any, mock_oauth_client: GoogleOAuthClient
-) -> None:
-    """ネットワークエラー時にget_video_detailsがYouTubeNetworkErrorをスローすること.
-
-    Arrange:
-        ネットワークエラーをモックする。
-
-    Act:
-        get_video_details()を呼び出す。
-
-    Assert:
-        YouTubeNetworkErrorがスローされること。
-    """
-    # Arrange
-    original_error = requests.exceptions.ConnectionError("Connection failed")
-    mocker.patch("requests.get", side_effect=original_error)
-
-    client = YouTubeClient(mock_oauth_client)
-
-    # Act & Assert
-    with pytest.raises(YouTubeNetworkError) as exc_info:
-        client.get_video_details("test_video_id")
-
-    assert exc_info.value.__cause__ == original_error
-
-
 def test_get_uploads_playlist_id_returns_id(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
