@@ -166,7 +166,7 @@ class YouTubeClient:
             if len(video_ids_batch) >= self.MAX_RESULTS_PER_PAGE:
                 videos = self._get_video_details_batch(video_ids_batch)
                 for video in videos:
-                    if published_after and video.published_at <= published_after:
+                    if published_after and video.published_at < published_after:
                         return
                     yield video
                 video_ids_batch = []
@@ -175,7 +175,7 @@ class YouTubeClient:
         if video_ids_batch:
             videos = self._get_video_details_batch(video_ids_batch)
             for video in videos:
-                if published_after and video.published_at <= published_after:
+                if published_after and video.published_at < published_after:
                     return
                 yield video
 

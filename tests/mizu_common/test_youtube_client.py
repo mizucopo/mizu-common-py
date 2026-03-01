@@ -614,8 +614,9 @@ def test_iter_channel_videos_with_published_after_filters_old_videos(
     result = list(client.iter_channel_videos("test_channel_id", published_after))
 
     # Assert
-    assert len(result) == 1
+    assert len(result) == 2
     assert result[0].video_id == "video1"
+    assert result[1].video_id == "video2"
 
 
 def test_iter_channel_videos_with_published_after_stops_early(
@@ -650,7 +651,7 @@ def test_iter_channel_videos_with_published_after_stops_early(
         "nextPageToken": "page2",
     }
 
-    # 動画詳細: video0は新しい、video1以降は閾値より古い
+    # 動画詳細: video0は新しい、video1は閾値と同時刻、video2以降は閾値より古い
     videos_response = Mock()
     videos_response.status_code = 200
     video_items = [
@@ -661,16 +662,24 @@ def test_iter_channel_videos_with_published_after_stops_early(
                 "publishedAt": "2024-03-01T00:00:00Z",
             },
             "contentDetails": {"duration": "PT10M"},
-        }
+        },
+        {
+            "id": "video1",
+            "snippet": {
+                "title": "Threshold Video",
+                "publishedAt": "2024-02-01T00:00:00Z",
+            },
+            "contentDetails": {"duration": "PT10M"},
+        },
     ]
-    # 残り49件は閾値と同時刻（含まれない）
-    for i in range(1, 50):
+    # 残り48件は閾値より古い（含まれない）
+    for i in range(2, 50):
         video_items.append(
             {
                 "id": f"video{i}",
                 "snippet": {
                     "title": f"Old Video {i}",
-                    "publishedAt": "2024-02-01T00:00:00Z",
+                    "publishedAt": "2024-01-15T00:00:00Z",
                 },
                 "contentDetails": {"duration": "PT10M"},
             }
@@ -687,7 +696,8 @@ def test_iter_channel_videos_with_published_after_stops_early(
     result = list(client.iter_channel_videos("test_channel_id", published_after))
 
     # Assert
-    assert len(result) == 1
+    assert len(result) == 2
     assert result[0].video_id == "video0"
+    assert result[1].video_id == "video1"
     # 2ページ目はリクエストされないこと
     assert mock_get.call_count == 3
