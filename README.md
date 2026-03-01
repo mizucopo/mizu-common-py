@@ -8,7 +8,7 @@ Python用共通ライブラリ。
 
 - **GoogleOAuthClient**: OAuth 2.0 Device Flowによる認証とアクセストークン管理
 - **GoogleDriveProvider**: Google Driveへのファイルアップロード（新規作成/既存更新の自動判定）
-- **YouTubeClient**: YouTube Data API v3を使用したライブアーカイブ情報の取得
+- **YouTubeClient**: YouTube Data API v3を使用したチャンネル動画情報の取得
 
 ### ユーティリティ
 

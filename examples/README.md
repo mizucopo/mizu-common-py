@@ -36,7 +36,7 @@ uv run python examples/example_google_drive.py
 | `example_logging.py` | LoggingConfigurator の使用例 | 不要 |
 | `example_backup.py` | tempfile を使用した BackupManager の例 | 不要 |
 | `example_lock.py` | 二重起動防止のための LockManager の例 | 不要 |
-| `example_youtube.py` | ライブアーカイブ取得の YouTubeClient の例 | 必要 |
+| `example_youtube.py` | チャンネル動画取得の YouTubeClient の例 | 必要 |
 | `example_google_drive.py` | ファイルアップロードの GoogleDriveProvider の例 | 必要 |
 
 ## OAuth 認証情報の取得方法

@@ -1,6 +1,6 @@
 """YouTube Data API v3クライアントモジュール.
 
-YouTubeライブアーカイブの検出と詳細取得を提供する。
+チャンネルの全動画（ライブ含む）の取得を提供する。
 """
 
 from collections.abc import Iterator
@@ -18,10 +18,11 @@ from mizu_common.models.youtube_video_info import YouTubeVideoInfo
 class YouTubeClient:
     """YouTube Data API v3クライアント.
 
-    OAuth認証を使用してYouTube APIにアクセスし、ライブアーカイブ情報を取得する。
+    OAuth認証を使用してYouTube APIにアクセスし、チャンネルの全動画情報を取得する。
     """
 
     BASE_URL = "https://www.googleapis.com/youtube/v3"
+    MAX_RESULTS_PER_PAGE = 50
 
     def __init__(self, oauth_client: GoogleOAuthClient) -> None:
         """クライアントを初期化する.
@@ -65,14 +66,42 @@ class YouTubeClient:
 
         return cast("dict[str, Any]", response.json())
 
-    def iter_live_archives(self, channel_id: str) -> Iterator[YouTubeVideoInfo]:
-        """チャンネルのライブアーカイブを順次取得するジェネレーター.
+    def _get_uploads_playlist_id(self, channel_id: str) -> str:
+        """チャンネルIDからuploadsプレイリストIDを取得する.
 
         Args:
             channel_id: YouTubeチャンネルID
 
+        Returns:
+            uploadsプレイリストID
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
+            ValueError: チャンネルが見つからない場合
+        """
+        params = {
+            "part": "contentDetails",
+            "id": channel_id,
+        }
+
+        data = self._make_request("channels", params)
+
+        items = data.get("items", [])
+        if not items:
+            raise ValueError(f"チャンネルが見つかりません: {channel_id}")
+
+        uploads_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        return str(uploads_id)
+
+    def _iter_playlist_video_ids(self, playlist_id: str) -> Iterator[str]:
+        """プレイリスト内の動画IDを順次取得するジェネレーター.
+
+        Args:
+            playlist_id: プレイリストID
+
         Yields:
-            YouTubeVideoInfo: ライブアーカイブ情報
+            動画ID
 
         Raises:
             YouTubeNetworkError: ネットワークエラーが発生した場合
@@ -81,37 +110,93 @@ class YouTubeClient:
         Note:
             例外は遅延して発生する可能性があります。
             2ページ目以降の取得時にエラーが発生した場合、
-            そのページの最初の動画を取得しようとしたタイミングで例外が送出されます。
+            そのページの最初の動画IDを取得しようとしたタイミングで例外が送出されます。
         """
         next_page_token: str | None = None
 
         while True:
             params: dict[str, str] = {
-                "channelId": channel_id,
-                "part": "id",
-                "maxResults": "50",
-                "type": "video",
-                "eventType": "completed",
-                "order": "date",
+                "part": "contentDetails",
+                "playlistId": playlist_id,
+                "maxResults": str(self.MAX_RESULTS_PER_PAGE),
             }
 
             if next_page_token:
                 params["pageToken"] = next_page_token
 
-            data = self._make_request("search", params)
+            data = self._make_request("playlistItems", params)
 
-            video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
-            if video_ids:
-                video_details = self._get_video_details_batch(video_ids)
-                yield from video_details
+            for item in data.get("items", []):
+                video_id = item["contentDetails"]["videoId"]
+                yield video_id
 
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
                 break
 
-    def get_live_archives(self, channel_id: str) -> list[YouTubeVideoInfo]:
-        """チャンネルのライブアーカイブ一覧を取得する."""
-        return list(self.iter_live_archives(channel_id))
+    def iter_channel_videos(
+        self, channel_id: str, published_after: datetime | None = None
+    ) -> Iterator[YouTubeVideoInfo]:
+        """チャンネルの全動画（ライブ含む）を順次取得するジェネレーター.
+
+        Args:
+            channel_id: YouTubeチャンネルID
+            published_after: この日時より後の動画のみ取得（Noneの場合は全件取得）
+
+        Yields:
+            YouTubeVideoInfo: 動画情報
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
+            ValueError: チャンネルが見つからない場合
+
+        Note:
+            例外は遅延して発生する可能性があります。
+            2ページ目以降の取得時にエラーが発生した場合、
+            そのページの最初の動画を取得しようとしたタイミングで例外が送出されます。
+        """
+        playlist_id = self._get_uploads_playlist_id(channel_id)
+
+        video_ids_batch: list[str] = []
+        for video_id in self._iter_playlist_video_ids(playlist_id):
+            video_ids_batch.append(video_id)
+
+            # MAX_RESULTS_PER_PAGE件ずつバッチ処理
+            if len(video_ids_batch) >= self.MAX_RESULTS_PER_PAGE:
+                videos = self._get_video_details_batch(video_ids_batch)
+                for video in videos:
+                    if published_after and video.published_at <= published_after:
+                        return
+                    yield video
+                video_ids_batch = []
+
+        # 残りの動画を処理
+        if video_ids_batch:
+            videos = self._get_video_details_batch(video_ids_batch)
+            for video in videos:
+                if published_after and video.published_at <= published_after:
+                    return
+                yield video
+
+    def get_channel_videos(
+        self, channel_id: str, published_after: datetime | None = None
+    ) -> list[YouTubeVideoInfo]:
+        """チャンネルの全動画（ライブ含む）一覧を取得する.
+
+        Args:
+            channel_id: YouTubeチャンネルID
+            published_after: この日時より後の動画のみ取得（Noneの場合は全件取得）
+
+        Returns:
+            動画情報のリスト
+
+        Raises:
+            YouTubeNetworkError: ネットワークエラーが発生した場合
+            YouTubeHttpError: HTTPステータスエラーが発生した場合
+            ValueError: チャンネルが見つからない場合
+        """
+        return list(self.iter_channel_videos(channel_id, published_after))
 
     def _get_video_details_batch(self, video_ids: list[str]) -> list[YouTubeVideoInfo]:
         """複数の動画詳細を一括取得する.
