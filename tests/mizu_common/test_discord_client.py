@@ -157,8 +157,8 @@ def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
     )
 
 
-def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
-    """send_embedが複数のEmbedを送信できること.
+def test_send_embeds_with_multiple_embeds(mocker: Any) -> None:
+    """send_embedsが複数のEmbedを送信できること.
 
     Arrange:
         Webhook URLを用意する。
@@ -166,7 +166,7 @@ def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
         複数のEmbedを用意する。
 
     Act:
-        複数のEmbedを指定してsend_embed()を実行する。
+        複数のEmbedを指定してsend_embeds()を実行する。
 
     Assert:
         ペイロードに複数のembedsが含まれること。
@@ -190,7 +190,7 @@ def test_send_embed_with_multiple_embeds(mocker: Any) -> None:
     assert len(call_args[1]["json"]["embeds"]) == 2
 
 
-def test_send_embed_raises_error_when_exceeds_limit() -> None:
+def test_send_embeds_raises_error_when_exceeds_limit() -> None:
     """send_embedsがEmbed数11以上でValueErrorを発生すること.
 
     Arrange:

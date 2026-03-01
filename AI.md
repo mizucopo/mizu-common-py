@@ -100,6 +100,7 @@ from mizu_common import GoogleOAuthClient, GoogleScope
 
 client = GoogleOAuthClient(
     oauth_client_id="YOUR_CLIENT_ID",
+    oauth_client_secret="YOUR_CLIENT_SECRET",
     refresh_token="YOUR_REFRESH_TOKEN",
     scopes=[GoogleScope.YOUTUBE_READONLY],
 )
@@ -108,7 +109,7 @@ access_token = client.get_access_token()
 headers = client.get_headers()  # {"Authorization": "Bearer <token>"}
 ```
 
-- `__init__(oauth_client_id: str, refresh_token: str, scopes: Sequence[str])`
+- `__init__(oauth_client_id: str, oauth_client_secret: str, refresh_token: str, scopes: Sequence[str])`
 - `get_access_token(force_refresh: bool = False) -> str` - アクセストークンを取得（キャッシュあり）
   - 失敗時 `RuntimeError` を送出
 - `get_headers() -> dict[str, str]` - Authorizationヘッダーを含む辞書を返す
@@ -193,11 +194,12 @@ videos = client.get_channel_videos(channel_id="CHANNEL_ID")
 ```
 
 - `__init__(oauth_client: GoogleOAuthClient)`
-- `iter_channel_videos(channel_id: str) -> Iterator[YouTubeVideoInfo]` - 遅延イテレータ
+- `iter_channel_videos(channel_id: str, published_after: datetime | None = None) -> Iterator[YouTubeVideoInfo]` - 遅延イテレータ
+  - `published_after` を指定すると、その日時より後の動画のみ取得（古い動画に達したら終了）
   - ネットワークエラー時 `YouTubeNetworkError` を送出
   - HTTPエラー時 `YouTubeHttpError` を送出（`status_code` 属性付き）
   - チャンネルが見つからない場合 `ValueError` を送出
-- `get_channel_videos(channel_id: str) -> list[YouTubeVideoInfo]` - 即時リスト取得
+- `get_channel_videos(channel_id: str, published_after: datetime | None = None) -> list[YouTubeVideoInfo]` - 即時リスト取得
 - `get_video_details(video_id: str) -> YouTubeVideoInfo | None` - 単一動画の取得
 
 **必要なスコープ**: `GoogleScope.YOUTUBE_READONLY`
@@ -349,6 +351,7 @@ from mizu_common import YouTubeClient, GoogleOAuthClient, GoogleScope
 
 oauth = GoogleOAuthClient(
     oauth_client_id="CLIENT_ID",
+    oauth_client_secret="CLIENT_SECRET",
     refresh_token="REFRESH_TOKEN",
     scopes=[GoogleScope.YOUTUBE_READONLY],
 )

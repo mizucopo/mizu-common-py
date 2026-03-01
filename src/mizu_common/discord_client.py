@@ -39,7 +39,7 @@ class DiscordClient:
             avatar_url: オーバーライドするアバターURL
 
         Raises:
-            RuntimeError: メッセージの送信に失敗した場合
+            DiscordWebhookError: メッセージの送信に失敗した場合
         """
         payload: dict[str, Any] = {"content": content}
         if username is not None:
@@ -63,7 +63,7 @@ class DiscordClient:
             avatar_url: オーバーライドするアバターURL
 
         Raises:
-            RuntimeError: メッセージの送信に失敗した場合
+            DiscordWebhookError: メッセージの送信に失敗した場合
         """
         payload: dict[str, Any] = {"embeds": [embed.to_dict()]}
         if username is not None:
@@ -88,7 +88,7 @@ class DiscordClient:
 
         Raises:
             ValueError: Embed数が10を超える場合
-            RuntimeError: メッセージの送信に失敗した場合
+            DiscordWebhookError: メッセージの送信に失敗した場合
         """
         if len(embeds) > 10:
             raise ValueError("Embed数は最大10件までです")
@@ -108,7 +108,7 @@ class DiscordClient:
             payload: 送信するペイロード
 
         Raises:
-            RuntimeError: リクエストが失敗した場合
+            DiscordWebhookError: リクエストが失敗した場合
         """
         response = requests.post(
             self._webhook_url,
