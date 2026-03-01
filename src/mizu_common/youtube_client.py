@@ -141,7 +141,7 @@ class YouTubeClient:
 
         Args:
             channel_id: YouTubeチャンネルID
-            published_after: この日時より後の動画のみ取得（Noneの場合は全件取得）
+            published_after: この日時以降の動画のみ取得（Noneの場合は全件取得）
 
         Yields:
             YouTubeVideoInfo: 動画情報
@@ -188,7 +188,7 @@ class YouTubeClient:
 
         Args:
             channel_id: YouTubeチャンネルID
-            published_after: この日時より後の動画のみ取得（Noneの場合は全件取得）
+            published_after: この日時以降の動画のみ取得（Noneの場合は全件取得）
 
         Returns:
             動画情報のリスト
