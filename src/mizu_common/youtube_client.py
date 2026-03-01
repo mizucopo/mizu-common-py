@@ -259,6 +259,12 @@ class YouTubeClient:
         Raises:
             YouTubeNetworkError: ネットワークエラーが発生した場合
             YouTubeHttpError: HTTPステータスエラーが発生した場合
+
+        Note:
+            YouTube Data API v3には単一動画取得の専用エンドポイントはなく、
+            videos.list エンドポイントでIDを指定して取得する仕様。
+            そのため内部的にバッチ取得メソッドを使用してもAPIリクエスト数は同じであり、
+            コードの再利用性を高めるために_get_video_details_batchを使用している。
         """
         videos = self._get_video_details_batch([video_id])
         return videos[0] if videos else None
