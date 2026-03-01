@@ -124,6 +124,14 @@ def main() -> None:
             print(f"更新エラー: {e}")
             sys.exit(1)
 
+    # sanitize_name の使用例
+    # Google Drive で使用できない文字を含むファイル名をサニタイズ
+    raw_filename = "video:2024/01?.mp4"
+    safe_filename = GoogleDriveProvider.sanitize_name(raw_filename)
+    print("\nサニタイズの例:")
+    print(f"  元のファイル名: {raw_filename}")
+    print(f"  サニタイズ後: {safe_filename}")  # -> "video_2024/01_.mp4"
+
 
 if __name__ == "__main__":
     main()

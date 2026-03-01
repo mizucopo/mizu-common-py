@@ -1,6 +1,7 @@
 """Google Drive アップロードプロバイダモジュール。"""
 
 import logging
+import re
 from typing import Any
 
 from google.oauth2 import credentials
@@ -21,6 +22,24 @@ class GoogleDriveProvider:
     CHUNK_SIZE = 100 * 1024 * 1024
     MAX_RETRIES = 5
     SCOPES = [GoogleScope.DRIVE_FILE]
+
+    @staticmethod
+    def sanitize_name(name: str) -> str:
+        """Google Drive で使用できない文字を置換する。
+
+        パス区切り（/）は除外し、ファイル名・フォルダ名として使用できない文字のみ置換する。
+
+        Args:
+            name: 元の名前
+
+        Returns:
+            サニタイズされた名前
+        """
+        # 禁止文字: \ : * ? " < > | と制御文字（/ はパス区切りとして使用するため除外）
+        sanitized = re.sub(r'[\\:*?"<>|\r\n\t]', "_", name)
+        # 先頭・末尾のドットとスペースを削除
+        sanitized = sanitized.strip(". ")
+        return sanitized if sanitized else "untitled"
 
     def __init__(
         self,
@@ -109,7 +128,7 @@ class GoogleDriveProvider:
 
         # パス解析
         path_parts = destination_filename.split("/")
-        actual_filename = path_parts[-1]
+        actual_filename = self.sanitize_name(path_parts[-1])
         folder_parts = path_parts[:-1]
 
         # 親フォルダIDの決定
@@ -194,7 +213,7 @@ class GoogleDriveProvider:
         """
         # パス解析
         path_parts = filename.split("/")
-        actual_filename = path_parts[-1]
+        actual_filename = self.sanitize_name(path_parts[-1])
         folder_parts = path_parts[:-1]
 
         # 親フォルダIDの決定
@@ -314,9 +333,10 @@ class GoogleDriveProvider:
         current_parent_id = self.folder_id
 
         for folder_name in path_parts:
-            folder_id = self._find_folder(folder_name, current_parent_id)
+            sanitized_name = self.sanitize_name(folder_name)
+            folder_id = self._find_folder(sanitized_name, current_parent_id)
             if folder_id is None:
-                folder_id = self._create_folder(folder_name, current_parent_id)
+                folder_id = self._create_folder(sanitized_name, current_parent_id)
             current_parent_id = folder_id
 
         logger.info(f"Folder path resolved to ID: {current_parent_id}")
@@ -334,7 +354,8 @@ class GoogleDriveProvider:
         current_parent_id = self.folder_id
 
         for folder_name in path_parts:
-            folder_id = self._find_folder(folder_name, current_parent_id)
+            sanitized_name = self.sanitize_name(folder_name)
+            folder_id = self._find_folder(sanitized_name, current_parent_id)
             if folder_id is None:
                 return None
             current_parent_id = folder_id

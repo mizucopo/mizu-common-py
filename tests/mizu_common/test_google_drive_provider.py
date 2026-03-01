@@ -494,3 +494,194 @@ def test_upload_without_path_works_as_before(
     call_args = mock_files.create.call_args
     assert call_args[1]["body"]["name"] == "simple_file.txt"
     assert call_args[1]["body"]["parents"] == ["root_folder"]
+
+
+def test_sanitize_name_replaces_forbidden_characters() -> None:
+    """禁止文字がアンダースコアに置換されること。
+
+    Given:
+        - 禁止文字（: * ? " < > | \\）を含むファイル名
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - 禁止文字がアンダースコアに置換されること
+    """
+    # Arrange
+    raw_name = "file:name?.txt"
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    assert result == "file_name_.txt"
+
+
+def test_sanitize_name_strips_leading_trailing_dots_and_spaces() -> None:
+    """先頭・末尾のドットとスペースが削除されること。
+
+    Given:
+        - 先頭と末尾にドットとスペースを含むファイル名
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - 先頭・末尾のドットとスペースが削除されること
+    """
+    # Arrange
+    raw_name = ".hidden."
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    assert result == "hidden"
+
+
+def test_sanitize_name_returns_untitled_for_empty_string() -> None:
+    """空文字列の場合に untitled が返されること。
+
+    Given:
+        - 空文字列
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - "untitled" が返されること
+    """
+    # Arrange
+    raw_name = ""
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    assert result == "untitled"
+
+
+def test_sanitize_name_returns_untitled_for_dots_only() -> None:
+    """ドットのみの場合に untitled が返されること。
+
+    Given:
+        - ドットのみの文字列
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - "untitled" が返されること
+    """
+    # Arrange
+    raw_name = "..."
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    assert result == "untitled"
+
+
+def test_sanitize_name_preserves_path_separator() -> None:
+    """パス区切り（/）が保持されること。
+
+    Given:
+        - パス区切りを含むパス
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - パス区切りは置換されず保持されること
+    """
+    # Arrange
+    raw_name = "folder:name/file?.txt"
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    # / はパス区切りとして機能するため除外されるが、sanitize_name自体は/を処理しない
+    # （パスはsplit("/")で分割され、各パートがsanitize_nameに渡される）
+    assert result == "folder_name/file_.txt"
+
+
+def test_sanitize_name_returns_same_string_for_normal_name() -> None:
+    """正常なファイル名は変更されないこと。
+
+    Given:
+        - 禁止文字を含まない正常なファイル名
+
+    When:
+        - sanitize_name() を実行
+
+    Then:
+        - 元のファイル名がそのまま返されること
+    """
+    # Arrange
+    raw_name = "normal.txt"
+
+    # Act
+    result = GoogleDriveProvider.sanitize_name(raw_name)
+
+    # Assert
+    assert result == "normal.txt"
+
+
+# ============================================================
+# サニタイズ適用の統合テスト
+# ============================================================
+
+
+def test_upload_sanitizes_folder_and_file_names(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+    test_file: str,
+) -> None:
+    """パス区切り付きファイル名でサニタイズが適用されること。
+
+    Given:
+        - folder:name/file?.txt というパス（禁止文字を含む）
+        - フォルダもファイルも存在しない
+
+    When:
+        - upload() を実行
+
+    Then:
+        - サニタイズされた名前でフォルダとファイルが作成されること
+    """
+    # Arrange
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+    mock_create_req = mock_files.create.return_value
+
+    # ファイル検索: フォルダ検索 → なし
+    # _ensure_folder_path: folder_name検索 → なし、作成
+    mock_list_req.execute.side_effect = [
+        {"files": []},  # _find_folder_path: folder:name検索
+        {"files": []},  # _ensure_folder_path: folder_name検索
+    ]
+    mock_create_req.execute.side_effect = [
+        {"id": "sanitized_folder_id"},
+    ]
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    provider = GoogleDriveProvider(
+        folder_id="root_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+    # Act
+    provider.upload(test_file, "folder:name/file?.txt")
+
+    # Assert
+    # フォルダ作成時の名前を確認
+    folder_create_call = mock_files.create.call_args_list[0]
+    assert folder_create_call[1]["body"]["name"] == "folder_name"
+
+    # ファイル作成時の名前を確認
+    file_create_call = mock_files.create.call_args_list[1]
+    assert file_create_call[1]["body"]["name"] == "file_.txt"
