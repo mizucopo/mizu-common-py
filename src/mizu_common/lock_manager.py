@@ -101,20 +101,19 @@ class LockManager:
             with suppress(OSError):
                 self._lock_path.unlink()
 
-    def release(self) -> bool:
+    def release(self) -> None:
         """ロックファイルを削除する.
 
         ロックファイルが存在する場合に削除する。
         このメソッドは他のプロセスがロックを保持しているかどうかにかかわらず、
         ファイルを削除する。
 
-        Returns:
-            ロックファイルが削除された場合はTrue
+        Note:
+            通常は acquire() コンテキストマネージャの使用を推奨。
+            このメソッドは緊急時のクリーンアップ用途。
         """
         with suppress(OSError):
             self._lock_path.unlink()
-            return True
-        return False
 
     def is_locked(self) -> bool:
         """ロックファイルが存在するかどうかを確認する.
