@@ -10,6 +10,8 @@ from typing import Any
 
 import requests
 
+from mizu_common.constants.http_timeout import DEFAULT_TIMEOUT
+
 logger = logging.getLogger(__name__)
 
 
@@ -174,7 +176,9 @@ class GoogleOAuthClient:
         """
         payload = {"client_id": client_id, "scope": " ".join(scopes)}
         try:
-            response = requests.post(cls.DEVICE_CODE_URL, data=payload, timeout=30)
+            response = requests.post(
+                cls.DEVICE_CODE_URL, data=payload, timeout=DEFAULT_TIMEOUT
+            )
             response.raise_for_status()
             data: dict[str, Any] = response.json()
             return data
@@ -213,7 +217,9 @@ class GoogleOAuthClient:
 
         while time.time() - start_time < expires_in:
             try:
-                response = requests.post(cls.TOKEN_URL, data=payload, timeout=30)
+                response = requests.post(
+                    cls.TOKEN_URL, data=payload, timeout=DEFAULT_TIMEOUT
+                )
                 data: dict[str, Any] = response.json()
 
                 if response.status_code == 200:

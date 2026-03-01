@@ -9,6 +9,7 @@ from typing import Any, cast
 
 import requests
 
+from mizu_common.constants.http_timeout import DEFAULT_TIMEOUT
 from mizu_common.exceptions.youtube_http_error import YouTubeHttpError
 from mizu_common.exceptions.youtube_network_error import YouTubeNetworkError
 from mizu_common.google_oauth_client import GoogleOAuthClient
@@ -52,7 +53,7 @@ class YouTubeClient:
                 f"{self.BASE_URL}/{endpoint}",
                 params=params,
                 headers=headers,
-                timeout=30,
+                timeout=DEFAULT_TIMEOUT,
             )
         except requests.exceptions.RequestException as e:
             raise YouTubeNetworkError(f"APIリクエストに失敗しました: {e}") from e

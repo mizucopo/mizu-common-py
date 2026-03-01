@@ -7,6 +7,7 @@ from typing import Any
 
 import requests
 
+from mizu_common.constants.http_timeout import DEFAULT_TIMEOUT
 from mizu_common.exceptions.discord_webhook_error import DiscordWebhookError
 from mizu_common.models.discord_embed import DiscordEmbed
 
@@ -113,7 +114,7 @@ class DiscordClient:
         response = requests.post(
             self._webhook_url,
             json=payload,
-            timeout=30,
+            timeout=DEFAULT_TIMEOUT,
         )
 
         if response.status_code not in (200, 204):
