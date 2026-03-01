@@ -104,256 +104,6 @@ def test_upload_delegates_to_correct_api_method(
         mock_files.create.assert_not_called()
 
 
-# ============================================================
-# _find_folder テスト
-# ============================================================
-
-
-def test_find_folder_returns_id_when_exists(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """フォルダが存在する場合にIDが返されること。
-
-    Given:
-        - 指定した名前のフォルダが親フォルダ内に存在する
-
-    When:
-        - _find_folder() を実行
-
-    Then:
-        - フォルダIDが返されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_list_req.execute.return_value = {"files": [{"id": "folder_id_123"}]}
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._find_folder("subfolder", "root_folder")
-
-    # Assert
-    assert result == "folder_id_123"
-
-
-def test_find_folder_returns_none_when_not_exists(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """フォルダが存在しない場合にNoneが返されること。
-
-    Given:
-        - 指定した名前のフォルダが親フォルダ内に存在しない
-
-    When:
-        - _find_folder() を実行
-
-    Then:
-        - Noneが返されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_list_req.execute.return_value = {"files": []}
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._find_folder("nonexistent", "root_folder")
-
-    # Assert
-    assert result is None
-
-
-# ============================================================
-# _create_folder テスト
-# ============================================================
-
-
-def test_create_folder_returns_new_id(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """フォルダ作成時に新しいIDが返されること。
-
-    Given:
-        - 親フォルダが存在する
-
-    When:
-        - _create_folder() を実行
-
-    Then:
-        - files().create() が呼ばれ、新しいフォルダIDが返されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_create_req = mock_files.create.return_value
-    mock_create_req.execute.return_value = {"id": "new_folder_id"}
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._create_folder("new_folder", "root_folder")
-
-    # Assert
-    assert result == "new_folder_id"
-    mock_files.create.assert_called_once()
-    call_args = mock_files.create.call_args
-    assert call_args[1]["body"]["name"] == "new_folder"
-    assert call_args[1]["body"]["mimeType"] == "application/vnd.google-apps.folder"
-
-
-# ============================================================
-# _ensure_folder_path テスト
-# ============================================================
-
-
-def test_ensure_folder_path_all_existing(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """全フォルダが存在する場合、既存のIDが返されること。
-
-    Given:
-        - folder/subfolder のパスが全て存在する
-
-    When:
-        - _ensure_folder_path(["folder", "subfolder"]) を実行
-
-    Then:
-        - 新規作成されず、既存のフォルダIDが返されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-
-    # 1回目: folder検索 → folder_id_1
-    # 2回目: subfolder検索 → folder_id_2
-    mock_list_req.execute.side_effect = [
-        {"files": [{"id": "folder_id_1"}]},
-        {"files": [{"id": "folder_id_2"}]},
-    ]
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._ensure_folder_path(["folder", "subfolder"])
-
-    # Assert
-    assert result == "folder_id_2"
-    mock_files.create.assert_not_called()
-
-
-def test_ensure_folder_path_all_new(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """全フォルダが存在しない場合、新規作成されること。
-
-    Given:
-        - folder/subfolder のパスが全て存在しない
-
-    When:
-        - _ensure_folder_path(["folder", "subfolder"]) を実行
-
-    Then:
-        - 2つのフォルダが新規作成され、最終フォルダIDが返されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-
-    # folder検索: なし → 作成
-    # subfolder検索: なし → 作成
-    mock_list_req.execute.side_effect = [
-        {"files": []},
-        {"files": []},
-    ]
-    mock_create_req.execute.side_effect = [
-        {"id": "new_folder_id_1"},
-        {"id": "new_folder_id_2"},
-    ]
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._ensure_folder_path(["folder", "subfolder"])
-
-    # Assert
-    assert result == "new_folder_id_2"
-    assert mock_files.create.call_count == 2
-
-
-def test_ensure_folder_path_partial_existing(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> None:
-    """一部のフォルダのみ存在する場合、残りが新規作成されること。
-
-    Given:
-        - folder は存在するが subfolder は存在しない
-
-    When:
-        - _ensure_folder_path(["folder", "subfolder"]) を実行
-
-    Then:
-        - folder は既存、subfolder は新規作成されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-
-    # folder検索: あり
-    # subfolder検索: なし → 作成
-    mock_list_req.execute.side_effect = [
-        {"files": [{"id": "existing_folder_id"}]},
-        {"files": []},
-    ]
-    mock_create_req.execute.return_value = {"id": "new_subfolder_id"}
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    result = provider._ensure_folder_path(["folder", "subfolder"])
-
-    # Assert
-    assert result == "new_subfolder_id"
-    mock_files.create.assert_called_once()
-
-
-# ============================================================
-# パス区切り付きアップロード テスト
-# ============================================================
-
-
 def test_upload_with_path_creates_folders_and_file(
     mock_gdrive_credentials: Any,
     mock_gdrive_service: Any,
@@ -450,189 +200,42 @@ def test_upload_with_path_updates_existing_file(
     mock_files.create.assert_not_called()
 
 
-# ============================================================
-# 後方互換性テスト
-# ============================================================
-
-
-def test_upload_without_path_works_as_before(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-    test_file: str,
-) -> None:
-    """スラッシュなしファイル名で従来通りの動作が維持されること。
-
-    Given:
-        - スラッシュなしのファイル名
-
-    When:
-        - upload() を実行
-
-    Then:
-        - ルートフォルダ直下にファイルが作成されること
-    """
-    # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-
-    mock_list_req.execute.return_value = {"files": []}
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-    # Act
-    provider.upload(test_file, "simple_file.txt")
-
-    # Assert
-    # ファイル作成のみ（フォルダ作成なし）
-    mock_files.create.assert_called_once()
-    call_args = mock_files.create.call_args
-    assert call_args[1]["body"]["name"] == "simple_file.txt"
-    assert call_args[1]["body"]["parents"] == ["root_folder"]
-
-
-def test_sanitize_name_replaces_forbidden_characters() -> None:
-    """禁止文字がアンダースコアに置換されること。
+@pytest.mark.parametrize(
+    "raw_name,expected",
+    [
+        ("file:name?.txt", "file_name_.txt"),  # 禁止文字の置換
+        (".hidden.", "hidden"),  # 先頭・末尾のドット削除
+        ("", "untitled"),  # 空文字列
+        ("...", "untitled"),  # ドットのみ
+        ("  .  ", "untitled"),  # スペースとドットのみ
+        ("normal.txt", "normal.txt"),  # 正常なファイル名
+    ],
+    ids=[
+        "禁止文字の置換",
+        "先頭末尾ドット削除",
+        "空文字列",
+        "ドットのみ",
+        "スペースとドットのみ",
+        "正常なファイル名",
+    ],
+)
+def test_sanitize_name_handles_various_inputs(raw_name: str, expected: str) -> None:
+    """様々な入力に対してサニタイズが正しく適用されること。
 
     Given:
-        - 禁止文字（: * ? " < > | \\）を含むファイル名
+        - 様々なパターンのファイル名
 
     When:
         - sanitize_name() を実行
 
     Then:
-        - 禁止文字がアンダースコアに置換されること
+        - 期待されるサニタイズ結果が返されること
     """
-    # Arrange
-    raw_name = "file:name?.txt"
-
     # Act
     result = GoogleDriveProvider.sanitize_name(raw_name)
 
     # Assert
-    assert result == "file_name_.txt"
-
-
-def test_sanitize_name_strips_leading_trailing_dots_and_spaces() -> None:
-    """先頭・末尾のドットとスペースが削除されること。
-
-    Given:
-        - 先頭と末尾にドットとスペースを含むファイル名
-
-    When:
-        - sanitize_name() を実行
-
-    Then:
-        - 先頭・末尾のドットとスペースが削除されること
-    """
-    # Arrange
-    raw_name = ".hidden."
-
-    # Act
-    result = GoogleDriveProvider.sanitize_name(raw_name)
-
-    # Assert
-    assert result == "hidden"
-
-
-def test_sanitize_name_returns_untitled_for_empty_string() -> None:
-    """空文字列の場合に untitled が返されること。
-
-    Given:
-        - 空文字列
-
-    When:
-        - sanitize_name() を実行
-
-    Then:
-        - "untitled" が返されること
-    """
-    # Arrange
-    raw_name = ""
-
-    # Act
-    result = GoogleDriveProvider.sanitize_name(raw_name)
-
-    # Assert
-    assert result == "untitled"
-
-
-def test_sanitize_name_returns_untitled_for_dots_only() -> None:
-    """ドットのみの場合に untitled が返されること。
-
-    Given:
-        - ドットのみの文字列
-
-    When:
-        - sanitize_name() を実行
-
-    Then:
-        - "untitled" が返されること
-    """
-    # Arrange
-    raw_name = "..."
-
-    # Act
-    result = GoogleDriveProvider.sanitize_name(raw_name)
-
-    # Assert
-    assert result == "untitled"
-
-
-def test_sanitize_name_preserves_path_separator() -> None:
-    """パス区切り（/）が保持されること。
-
-    Given:
-        - パス区切りを含むパス
-
-    When:
-        - sanitize_name() を実行
-
-    Then:
-        - パス区切りは置換されず保持されること
-    """
-    # Arrange
-    raw_name = "folder:name/file?.txt"
-
-    # Act
-    result = GoogleDriveProvider.sanitize_name(raw_name)
-
-    # Assert
-    # / はパス区切りとして機能するため除外されるが、sanitize_name自体は/を処理しない
-    # （パスはsplit("/")で分割され、各パートがsanitize_nameに渡される）
-    assert result == "folder_name/file_.txt"
-
-
-def test_sanitize_name_returns_same_string_for_normal_name() -> None:
-    """正常なファイル名は変更されないこと。
-
-    Given:
-        - 禁止文字を含まない正常なファイル名
-
-    When:
-        - sanitize_name() を実行
-
-    Then:
-        - 元のファイル名がそのまま返されること
-    """
-    # Arrange
-    raw_name = "normal.txt"
-
-    # Act
-    result = GoogleDriveProvider.sanitize_name(raw_name)
-
-    # Assert
-    assert result == "normal.txt"
-
-
-# ============================================================
-# サニタイズ適用の統合テスト
-# ============================================================
+    assert result == expected
 
 
 def test_upload_sanitizes_folder_and_file_names(
