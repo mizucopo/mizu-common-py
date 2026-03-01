@@ -146,15 +146,25 @@ provider = GoogleDriveProvider.from_credentials(
     refresh_token="YOUR_REFRESH_TOKEN",
 )
 
+# 単純なファイル名でアップロード
 provider.upload(source_path="/local/file.zip", destination_filename="backup.zip")
+
+# パス区切りでフォルダ階層を指定（存在しないフォルダは自動作成）
+provider.upload(source_path="/local/file.zip", destination_filename="backups/2024/backup.zip")
 ```
 
 - `__init__(folder_id: str, credentials: Credentials, drive_service: Any | None = None)`
 - `from_credentials(folder_id, client_id, client_secret, refresh_token) -> GoogleDriveProvider` (クラスメソッド)
 - `upload(source_path: str, destination_filename: str) -> None` - ファイルをアップロード
   - 同名ファイルが存在する場合は更新、存在しない場合は新規作成
+  - `destination_filename` に `/` 区切りでフォルダパスを指定可能（存在しないフォルダは自動作成）
+  - ファイル名・フォルダ名は自動的にサニタイズされる
   - 失敗時 `RuntimeError` を送出
   - チャンクアップロードとリトライを実装（100MBチャンク、5回リトライ）
+- `sanitize_name(name: str) -> str` (静的メソッド) - ファイル名をサニタイズ
+  - 禁止文字（\ : * ? " < > |）をアンダースコアに置換
+  - 先頭・末尾のドットとスペースを削除
+  - 空文字列の場合は "untitled" を返す
 
 **必要なスコープ**: `GoogleScope.DRIVE_FILE`
 
@@ -300,14 +310,16 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 backup_path = f"/tmp/backup_{timestamp}.zip"
 backup.backup(backup_path)
 
-# Google Driveにアップロード
+# Google Driveにアップロード（パス区切りでフォルダ階層を指定）
 drive = GoogleDriveProvider.from_credentials(
     folder_id="DRIVE_FOLDER_ID",
     client_id="CLIENT_ID",
     client_secret="CLIENT_SECRET",
     refresh_token="REFRESH_TOKEN",
 )
-drive.upload(backup_path, f"backup_{timestamp}.zip")
+# backups/2024/backup_20240101_120000.zip のように階層構造でアップロード
+year = datetime.now().strftime("%Y")
+drive.upload(backup_path, f"backups/{year}/backup_{timestamp}.zip")
 logger.info("バックアップをアップロードしました")
 ```
 
@@ -451,6 +463,17 @@ scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 # 正しい: Enumを使用
 from mizu_common import GoogleScope
 scopes = [GoogleScope.YOUTUBE_READONLY]
+```
+
+### GoogleDriveProvider: 手動でのサニタイズは不要
+
+```python
+# 誤り: upload()が自動的にサニタイズするため二重処理
+sanitized_name = GoogleDriveProvider.sanitize_name("file:name?.txt")
+provider.upload(source_path, sanitized_name)
+
+# 正しい: そのまま渡す（upload()内で自動サニタイズ）
+provider.upload(source_path, "folder:name/file?.txt")
 ```
 
 ---
