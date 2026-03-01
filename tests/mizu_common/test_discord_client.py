@@ -85,7 +85,7 @@ def test_send_message_with_username_and_avatar(mocker: Any) -> None:
 
 
 def test_send_message_raises_error_on_failure(mocker: Any) -> None:
-    """send_messageが失敗時にRuntimeErrorが発生すること.
+    """send_messageが失敗時にDiscordWebhookErrorが発生すること.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -94,7 +94,7 @@ def test_send_message_raises_error_on_failure(mocker: Any) -> None:
         send_message()を実行する。
 
     Assert:
-        RuntimeErrorが発生すること。
+        DiscordWebhookErrorが発生すること。
     """
     # Arrange
     mock_response = Mock()

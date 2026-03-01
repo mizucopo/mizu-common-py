@@ -63,17 +63,17 @@ def test_upload_delegates_to_correct_api_method(
     existing_files: list[dict[str, str]],
     expected_method: str,
 ) -> None:
-    """同名ファイルの有無に応じて適切な API メソッドが呼ばれること。
+    """同名ファイルの有無に応じて適切なAPIメソッドが呼ばれること.
 
-    Given:
-        - 有効な認証情報
+    Arrange:
+        有効な認証情報を用意する。
 
-    When:
-        - GoogleDriveProvider.upload() を実行
+    Act:
+        GoogleDriveProvider.upload()を実行する。
 
-    Then:
-        - ファイルが存在しない場合: files().create() が呼ばれる
-        - ファイルが存在する場合: files().update() が呼ばれる
+    Assert:
+        ファイルが存在しない場合: files().create()が呼ばれること。
+        ファイルが存在する場合: files().update()が呼ばれること。
     """
     # Arrange
     mock_files = mock_gdrive_service.files.return_value
@@ -109,17 +109,17 @@ def test_upload_with_path_creates_folders_and_file(
     mock_gdrive_service: Any,
     test_file: str,
 ) -> None:
-    """パス区切り付きファイル名で新規作成時、フォルダとファイルが作成されること。
+    """パス区切り付きファイル名で新規作成時、フォルダとファイルが作成されること.
 
-    Given:
-        - folder/sub/file.txt というパス
-        - フォルダもファイルも存在しない
+    Arrange:
+        folder/sub/file.txtというパスを用意する。
+        フォルダもファイルも存在しない状態にする。
 
-    When:
-        - upload() を実行
+    Act:
+        upload()を実行する。
 
-    Then:
-        - フォルダが作成され、ファイルがアップロードされること
+    Assert:
+        フォルダが作成され、ファイルがアップロードされること。
     """
     # Arrange
     mock_files = mock_gdrive_service.files.return_value
@@ -159,17 +159,17 @@ def test_upload_with_path_updates_existing_file(
     mock_gdrive_service: Any,
     test_file: str,
 ) -> None:
-    """パス区切り付きファイル名で既存更新時、適切なフォルダで検索されること。
+    """パス区切り付きファイル名で既存更新時、適切なフォルダで検索されること.
 
-    Given:
-        - folder/sub/file.txt というパス
-        - フォルダとファイルが存在する
+    Arrange:
+        folder/sub/file.txtというパスを用意する。
+        フォルダとファイルが存在する状態にする。
 
-    When:
-        - upload() を実行
+    Act:
+        upload()を実行する。
 
-    Then:
-        - files().update() が呼ばれること
+    Assert:
+        files().update()が呼ばれること。
     """
     # Arrange
     mock_files = mock_gdrive_service.files.return_value
@@ -220,16 +220,16 @@ def test_upload_with_path_updates_existing_file(
     ],
 )
 def test_sanitize_name_handles_various_inputs(raw_name: str, expected: str) -> None:
-    """様々な入力に対してサニタイズが正しく適用されること。
+    """様々な入力に対してサニタイズが正しく適用されること.
 
-    Given:
-        - 様々なパターンのファイル名
+    Arrange:
+        様々なパターンのファイル名を用意する。
 
-    When:
-        - sanitize_name() を実行
+    Act:
+        sanitize_name()を実行する。
 
-    Then:
-        - 期待されるサニタイズ結果が返されること
+    Assert:
+        期待されるサニタイズ結果が返されること。
     """
     # Act
     result = GoogleDriveProvider.sanitize_name(raw_name)
@@ -243,17 +243,17 @@ def test_upload_sanitizes_folder_and_file_names(
     mock_gdrive_service: Any,
     test_file: str,
 ) -> None:
-    """パス区切り付きファイル名でサニタイズが適用されること。
+    """パス区切り付きファイル名でサニタイズが適用されること.
 
-    Given:
-        - folder:name/file?.txt というパス（禁止文字を含む）
-        - フォルダもファイルも存在しない
+    Arrange:
+        folder:name/file?.txtというパス（禁止文字を含む）を用意する。
+        フォルダもファイルも存在しない状態にする。
 
-    When:
-        - upload() を実行
+    Act:
+        upload()を実行する。
 
-    Then:
-        - サニタイズされた名前でフォルダとファイルが作成されること
+    Assert:
+        サニタイズされた名前でフォルダとファイルが作成されること。
     """
     # Arrange
     mock_files = mock_gdrive_service.files.return_value
