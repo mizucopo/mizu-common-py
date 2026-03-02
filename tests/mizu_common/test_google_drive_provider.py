@@ -424,6 +424,11 @@ def test_concurrent_upload_of_same_file_runs_serially(
     count_lock = threading.Lock()
     can_proceed = threading.Event()
 
+    # 両方のスレッドが開始したことを検知するカウンター
+    started_count = 0
+    started_lock = threading.Lock()
+    both_started = threading.Event()
+
     def mock_next_chunk(*_: Any, **__: Any) -> tuple[Any, dict[str, str]]:
         nonlocal concurrent_count, max_concurrent
 
@@ -431,7 +436,7 @@ def test_concurrent_upload_of_same_file_runs_serially(
             concurrent_count += 1
             max_concurrent = max(max_concurrent, concurrent_count)
 
-        can_proceed.wait(timeout=5.0)  # 少し待機して他のスレッドの状態を確認
+        can_proceed.wait(timeout=5.0)
 
         with count_lock:
             concurrent_count -= 1
@@ -446,6 +451,11 @@ def test_concurrent_upload_of_same_file_runs_serially(
     errors: list[Exception] = []
 
     def upload_file() -> None:
+        nonlocal started_count
+        with started_lock:
+            started_count += 1
+            if started_count == 2:
+                both_started.set()
         try:
             provider.upload(test_file, "same_file.txt")
             results.append("done")
@@ -459,10 +469,8 @@ def test_concurrent_upload_of_same_file_runs_serially(
     thread1.start()
     thread2.start()
 
-    # 両方のスレッドが開始するのを待ってから進行を許可
-    import time
-
-    time.sleep(0.1)  # スレッドが開始するのを待つ
+    # 両方のスレッドが開始したことを確認してから進行を許可
+    both_started.wait(timeout=5.0)
     can_proceed.set()
 
     thread1.join(timeout=5.0)
