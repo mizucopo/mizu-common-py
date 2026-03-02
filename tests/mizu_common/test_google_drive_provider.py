@@ -48,6 +48,32 @@ def test_file(tmp_path: Any) -> str:
     return str(file_path)
 
 
+@pytest.fixture
+def mock_gdrive_files(mock_gdrive_service: Any) -> tuple[Any, Any, Any]:
+    """モック化された Google Drive files リソース.
+
+    Returns:
+        (mock_files, mock_list_req, mock_create_req) のタプル
+    """
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+    mock_create_req = mock_files.create.return_value
+    return mock_files, mock_list_req, mock_create_req
+
+
+@pytest.fixture
+def gdrive_provider(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+) -> GoogleDriveProvider:
+    """テスト用の GoogleDriveProvider インスタンス."""
+    return GoogleDriveProvider(
+        folder_id="test_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+
 @pytest.mark.parametrize(
     "existing_files,expected_method",
     [
@@ -291,8 +317,8 @@ def test_upload_sanitizes_folder_and_file_names(
 
 
 def test_concurrent_upload_of_different_files_runs_in_parallel(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """異なるファイルの並行アップロードが並列実行されること.
@@ -310,9 +336,7 @@ def test_concurrent_upload_of_different_files_runs_in_parallel(
     # Arrange
     import threading
 
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
+    _, mock_list_req, mock_create_req = mock_gdrive_files
 
     mock_list_req.execute.return_value = {"files": []}
 
@@ -329,11 +353,7 @@ def test_concurrent_upload_of_different_files_runs_in_parallel(
 
     mock_create_req.next_chunk.side_effect = mock_next_chunk
 
-    provider = GoogleDriveProvider(
-        folder_id="test_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider = gdrive_provider
 
     results: list[str] = []
     errors: list[Exception] = []
@@ -375,8 +395,8 @@ def test_concurrent_upload_of_different_files_runs_in_parallel(
 
 
 def test_concurrent_upload_of_same_file_runs_serially(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """同じファイルの並行アップロードが直列実行されること.
@@ -394,9 +414,7 @@ def test_concurrent_upload_of_same_file_runs_serially(
     # Arrange
     import threading
 
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
+    _, mock_list_req, mock_create_req = mock_gdrive_files
 
     mock_list_req.execute.return_value = {"files": []}
 
@@ -422,11 +440,7 @@ def test_concurrent_upload_of_same_file_runs_serially(
 
     mock_create_req.next_chunk.side_effect = mock_next_chunk
 
-    provider = GoogleDriveProvider(
-        folder_id="test_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider = gdrive_provider
 
     results: list[str] = []
     errors: list[Exception] = []
@@ -463,8 +477,8 @@ def test_concurrent_upload_of_same_file_runs_serially(
 
 
 def test_upload_releases_file_lock_on_exception(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """例外発生時でもファイルロックが解放されること.
@@ -479,22 +493,15 @@ def test_upload_releases_file_lock_on_exception(
         例外が発生してもファイルロックが解放されること。
     """
     # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
+    _, mock_list_req, _ = mock_gdrive_files
 
     # 検索時に例外を発生させる
     mock_list_req.execute.side_effect = RuntimeError("API Error")
 
-    provider = GoogleDriveProvider(
-        folder_id="test_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
     # Act & Assert
     with pytest.raises(RuntimeError, match="API Error"):
-        provider.upload(test_file, "test.txt")
+        gdrive_provider.upload(test_file, "test.txt")
 
     # 例外発生後もファイルロックが解放されていることを確認
-    file_lock = provider._get_lock_for_file("test.txt")
+    file_lock = gdrive_provider._get_lock_for_file("test.txt")
     assert file_lock.locked() is False
