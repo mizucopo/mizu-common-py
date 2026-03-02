@@ -288,3 +288,82 @@ def test_upload_sanitizes_folder_and_file_names(
     # ファイル作成時の名前を確認
     file_create_call = mock_files.create.call_args_list[1]
     assert file_create_call[1]["body"]["name"] == "file_.txt"
+
+
+def test_upload_acquires_and_releases_lock(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+    test_file: str,
+) -> None:
+    """upload実行時にロックが取得・解放されること.
+
+    Arrange:
+        GoogleDriveProviderを用意する。
+
+    Act:
+        upload()を実行する。
+
+    Assert:
+        実行前はロックが取得可能であること。
+        実行中はロックが取得できないこと。
+        実行後はロックが解放されること。
+    """
+    # Arrange
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+    mock_create_req = mock_files.create.return_value
+
+    mock_list_req.execute.return_value = {"files": []}
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    provider = GoogleDriveProvider(
+        folder_id="test_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+    # 実行前はロックが取得可能であることを確認
+    assert provider._lock.locked() is False
+
+    # Act
+    provider.upload(test_file, "test.txt")
+
+    # Assert - 実行後はロックが解放されていることを確認
+    assert provider._lock.locked() is False
+
+
+def test_upload_releases_lock_on_exception(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+    test_file: str,
+) -> None:
+    """例外発生時でもロックが解放されること.
+
+    Arrange:
+        例外を発生させるモックを設定する。
+
+    Act:
+        upload()を実行し、例外が発生する。
+
+    Assert:
+        例外が発生してもロックが解放されること。
+    """
+    # Arrange
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+
+    # 検索時に例外を発生させる
+    mock_list_req.execute.side_effect = RuntimeError("API Error")
+
+    provider = GoogleDriveProvider(
+        folder_id="test_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="API Error"):
+        provider.upload(test_file, "test.txt")
+
+    # 例外発生後もロックが解放されていることを確認
+    assert provider._lock.locked() is False

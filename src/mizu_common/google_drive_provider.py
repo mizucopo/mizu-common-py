@@ -2,6 +2,7 @@
 
 import logging
 import re
+import threading
 from typing import Any
 
 from google.oauth2 import credentials
@@ -57,6 +58,7 @@ class GoogleDriveProvider:
         self.folder_id = folder_id
         self.creds = credentials
         self.service = drive_service or build("drive", "v3", credentials=credentials)
+        self._lock = threading.Lock()
 
     @classmethod
     def from_credentials(
@@ -101,17 +103,18 @@ class GoogleDriveProvider:
         Raises:
             RuntimeError: アップロード失敗時
         """
-        logger.info(
-            f"Uploading {source_path} to Google Drive folder {self.folder_id} "
-            f"as {destination_filename}..."
-        )
+        with self._lock:
+            logger.info(
+                f"Uploading {source_path} to Google Drive folder {self.folder_id} "
+                f"as {destination_filename}..."
+            )
 
-        existing_file_id = self._search_for_file(destination_filename)
+            existing_file_id = self._search_for_file(destination_filename)
 
-        if existing_file_id:
-            self._update_file(existing_file_id, source_path)
-        else:
-            self._create_file(source_path, destination_filename)
+            if existing_file_id:
+                self._update_file(existing_file_id, source_path)
+            else:
+                self._create_file(source_path, destination_filename)
 
     def _create_file(self, source_path: str, destination_filename: str) -> None:
         """新規ファイルを作成してアップロードする。
