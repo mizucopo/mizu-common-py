@@ -154,6 +154,52 @@ def test_upload_with_path_creates_folders_and_file(
     assert mock_files.create.call_count == 3
 
 
+def test_upload_with_path_updates_existing_file(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+    test_file: str,
+) -> None:
+    """パス区切り付きファイル名で既存更新時、適切なフォルダで検索されること.
+
+    Arrange:
+        folder/sub/file.txtというパスを用意する。
+        フォルダとファイルが存在する状態にする。
+
+    Act:
+        upload()を実行する。
+
+    Assert:
+        files().update()が呼ばれること。
+    """
+    # Arrange
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+    mock_update_req = mock_files.update.return_value
+
+    # _find_folder_path: folder検索 → あり
+    # _find_folder_path: sub検索 → あり
+    # _search_for_file: ファイル検索 → あり
+    mock_list_req.execute.side_effect = [
+        {"files": [{"id": "folder_id"}]},
+        {"files": [{"id": "sub_id"}]},
+        {"files": [{"id": "existing_file_id"}]},
+    ]
+    mock_update_req.next_chunk.return_value = (None, {"id": "existing_file_id"})
+
+    provider = GoogleDriveProvider(
+        folder_id="root_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+    # Act
+    provider.upload(test_file, "folder/sub/file.txt")
+
+    # Assert
+    mock_files.update.assert_called_once()
+    mock_files.create.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "raw_name,expected",
     [
