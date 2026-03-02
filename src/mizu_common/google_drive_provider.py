@@ -58,7 +58,8 @@ class GoogleDriveProvider:
         self.folder_id = folder_id
         self.creds = credentials
         self.service = drive_service or build("drive", "v3", credentials=credentials)
-        self._lock = threading.Lock()
+        self._file_locks: dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()  # _file_locks 辞書の保護用
 
     @classmethod
     def from_credentials(
@@ -90,6 +91,20 @@ class GoogleDriveProvider:
 
         return cls(folder_id=folder_id, credentials=creds)
 
+    def _get_lock_for_file(self, filename: str) -> threading.Lock:
+        """指定されたファイル名に対応するロックを取得する。
+
+        Args:
+            filename: ファイル名
+
+        Returns:
+            そのファイル専用のロックオブジェクト
+        """
+        with self._locks_lock:
+            if filename not in self._file_locks:
+                self._file_locks[filename] = threading.Lock()
+            return self._file_locks[filename]
+
     def upload(self, source_path: str, destination_filename: str) -> None:
         """Google Drive にファイルをアップロードする。
 
@@ -103,7 +118,7 @@ class GoogleDriveProvider:
         Raises:
             RuntimeError: アップロード失敗時
         """
-        with self._lock:
+        with self._get_lock_for_file(destination_filename):
             logger.info(
                 f"Uploading {source_path} to Google Drive folder {self.folder_id} "
                 f"as {destination_filename}..."

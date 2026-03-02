@@ -244,31 +244,44 @@ def test_upload_sanitizes_folder_and_file_names(
     assert file_create_call[1]["body"]["name"] == "file_.txt"
 
 
-def test_upload_acquires_and_releases_lock(
+def test_concurrent_upload_of_different_files_runs_in_parallel(
     mock_gdrive_credentials: Any,
     mock_gdrive_service: Any,
     test_file: str,
 ) -> None:
-    """upload実行時にロックが取得・解放されること.
+    """異なるファイルの並行アップロードが並列実行されること.
 
     Arrange:
-        GoogleDriveProviderを用意する。
+        異なる2つのファイル名を用意する。
+        アップロード処理をブロックするためのイベントを設定する。
 
     Act:
-        upload()を実行する。
+        2つのスレッドで異なるファイルのアップロードを並行開始する。
 
     Assert:
-        実行前はロックが取得可能であること。
-        実行中はロックが取得できないこと。
-        実行後はロックが解放されること。
+        両方のアップロードが同時に実行されること。
     """
     # Arrange
+    import threading
+
     mock_files = mock_gdrive_service.files.return_value
     mock_list_req = mock_files.list.return_value
     mock_create_req = mock_files.create.return_value
 
     mock_list_req.execute.return_value = {"files": []}
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    # アップロードの進行を制御するためのイベント
+    upload_started = threading.Event()
+    can_complete = threading.Event()
+    execution_order: list[str] = []
+
+    def mock_next_chunk(*_: Any, **__: Any) -> tuple[Any, dict[str, str]]:
+        upload_started.set()
+        execution_order.append("started")
+        can_complete.wait()  # 両方のスレッドがここに到達するまで待機
+        return (None, {"id": "file_id"})
+
+    mock_create_req.next_chunk.side_effect = mock_next_chunk
 
     provider = GoogleDriveProvider(
         folder_id="test_folder",
@@ -276,22 +289,139 @@ def test_upload_acquires_and_releases_lock(
         drive_service=mock_gdrive_service,
     )
 
-    # 実行前はロックが取得可能であることを確認
-    assert provider._lock.locked() is False
+    results: list[str] = []
+    errors: list[Exception] = []
+
+    def upload_file1() -> None:
+        try:
+            provider.upload(test_file, "file1.txt")
+            results.append("file1_done")
+        except Exception as e:
+            errors.append(e)
+
+    def upload_file2() -> None:
+        try:
+            provider.upload(test_file, "file2.txt")
+            results.append("file2_done")
+        except Exception as e:
+            errors.append(e)
 
     # Act
-    provider.upload(test_file, "test.txt")
+    thread1 = threading.Thread(target=upload_file1)
+    thread2 = threading.Thread(target=upload_file2)
 
-    # Assert - 実行後はロックが解放されていることを確認
-    assert provider._lock.locked() is False
+    thread1.start()
+    thread2.start()
+
+    # 両方のスレッドがアップロードを開始するまで待機
+    # 並列実行されていれば、両方が next_chunk に到達できる
+    upload_started.wait(timeout=5.0)
+
+    # アップロード完了を許可
+    can_complete.set()
+
+    thread1.join(timeout=5.0)
+    thread2.join(timeout=5.0)
+
+    # Assert
+    assert len(errors) == 0, f"Unexpected errors: {errors}"
+    assert len(results) == 2, "Both uploads should complete"
 
 
-def test_upload_releases_lock_on_exception(
+def test_concurrent_upload_of_same_file_runs_serially(
     mock_gdrive_credentials: Any,
     mock_gdrive_service: Any,
     test_file: str,
 ) -> None:
-    """例外発生時でもロックが解放されること.
+    """同じファイルの並行アップロードが直列実行されること.
+
+    Arrange:
+        同じファイル名への2つのアップロードを用意する。
+        アップロード処理内で並行実行を検出するためのカウンターを設定する。
+
+    Act:
+        2つのスレッドで同じファイルのアップロードを並行開始する。
+
+    Assert:
+        同時に実行されるアップロードが最大1つであること。
+    """
+    # Arrange
+    import threading
+
+    mock_files = mock_gdrive_service.files.return_value
+    mock_list_req = mock_files.list.return_value
+    mock_create_req = mock_files.create.return_value
+
+    mock_list_req.execute.return_value = {"files": []}
+
+    # 並行実行数を追跡
+    concurrent_count = 0
+    max_concurrent = 0
+    count_lock = threading.Lock()
+    can_proceed = threading.Event()
+
+    def mock_next_chunk(*_: Any, **__: Any) -> tuple[Any, dict[str, str]]:
+        nonlocal concurrent_count, max_concurrent
+
+        with count_lock:
+            concurrent_count += 1
+            max_concurrent = max(max_concurrent, concurrent_count)
+
+        can_proceed.wait(timeout=5.0)  # 少し待機して他のスレッドの状態を確認
+
+        with count_lock:
+            concurrent_count -= 1
+
+        return (None, {"id": "file_id"})
+
+    mock_create_req.next_chunk.side_effect = mock_next_chunk
+
+    provider = GoogleDriveProvider(
+        folder_id="test_folder",
+        credentials=mock_gdrive_credentials,
+        drive_service=mock_gdrive_service,
+    )
+
+    results: list[str] = []
+    errors: list[Exception] = []
+
+    def upload_file() -> None:
+        try:
+            provider.upload(test_file, "same_file.txt")
+            results.append("done")
+        except Exception as e:
+            errors.append(e)
+
+    # Act
+    thread1 = threading.Thread(target=upload_file)
+    thread2 = threading.Thread(target=upload_file)
+
+    thread1.start()
+    thread2.start()
+
+    # 両方のスレッドが開始するのを待ってから進行を許可
+    import time
+
+    time.sleep(0.1)  # スレッドが開始するのを待つ
+    can_proceed.set()
+
+    thread1.join(timeout=5.0)
+    thread2.join(timeout=5.0)
+
+    # Assert
+    assert len(errors) == 0, f"Unexpected errors: {errors}"
+    assert len(results) == 2, "Both uploads should complete"
+    assert max_concurrent == 1, (
+        f"Expected max 1 concurrent upload, got {max_concurrent}"
+    )
+
+
+def test_upload_releases_file_lock_on_exception(
+    mock_gdrive_credentials: Any,
+    mock_gdrive_service: Any,
+    test_file: str,
+) -> None:
+    """例外発生時でもファイルロックが解放されること.
 
     Arrange:
         例外を発生させるモックを設定する。
@@ -300,7 +430,7 @@ def test_upload_releases_lock_on_exception(
         upload()を実行し、例外が発生する。
 
     Assert:
-        例外が発生してもロックが解放されること。
+        例外が発生してもファイルロックが解放されること。
     """
     # Arrange
     mock_files = mock_gdrive_service.files.return_value
@@ -319,5 +449,6 @@ def test_upload_releases_lock_on_exception(
     with pytest.raises(RuntimeError, match="API Error"):
         provider.upload(test_file, "test.txt")
 
-    # 例外発生後もロックが解放されていることを確認
-    assert provider._lock.locked() is False
+    # 例外発生後もファイルロックが解放されていることを確認
+    file_lock = provider._get_lock_for_file("test.txt")
+    assert file_lock.locked() is False
