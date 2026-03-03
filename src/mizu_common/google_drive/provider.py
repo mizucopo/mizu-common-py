@@ -99,6 +99,11 @@ class GoogleDriveProvider:
 
         ロック解放時に辞書からエントリを削除してメモリリークを防ぐ。
 
+        注意:
+            このロックの内側で _folder_lock が取得される場合がある。
+            ロック取得順序は常に _file_lock → _folder_lock の順でなければならない。
+            逆順での取得はデッドロックを引き起こす可能性がある。
+
         Args:
             filename: ファイル名
         """
@@ -121,6 +126,10 @@ class GoogleDriveProvider:
         異なるファイル名で同じフォルダパスを使用する場合の競合を防ぐ。
         ロック解放時に辞書からエントリを削除してメモリリークを防ぐ。
 
+        注意:
+            このロックは常に _file_lock の内側でのみ取得される。
+            ロック取得順序: _file_lock → _folder_lock（逆順は禁止）
+
         Args:
             folder_path: フォルダパス（例: "folder/sub"）
         """
@@ -141,6 +150,11 @@ class GoogleDriveProvider:
 
         同名ファイルが存在する場合は上書き、存在しない場合は新規作成する。
         MediaFileUpload によるチャンキングと next_chunk によるリトライを実装。
+
+        スレッドセーフ:
+            同一ファイル名への並行アップロードは直列化される。
+            同一フォルダパスへの並行アクセスも直列化される。
+            ロック取得順序: _file_lock → _folder_lock
 
         Args:
             source_path: ローカルファイルパス
@@ -227,6 +241,10 @@ class GoogleDriveProvider:
 
         存在しないフォルダは新規作成する。
         同じフォルダパスへ同時にアクセスする場合の競合を防ぐためロックを使用する。
+
+        注意:
+            このメソッドは _folder_lock を取得するため、
+            必ず _file_lock の内側で呼ぶこと。
 
         Args:
             path_parts: フォルダ名のリスト（例: ["folder", "subfolder"]）
