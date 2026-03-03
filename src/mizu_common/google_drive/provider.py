@@ -3,7 +3,8 @@
 import logging
 import re
 import threading
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Generator
 
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
@@ -91,19 +92,26 @@ class GoogleDriveProvider:
 
         return cls(folder_id=folder_id, credentials=creds)
 
-    def _get_lock_for_file(self, filename: str) -> threading.Lock:
-        """指定されたファイル名に対応するロックを取得する。
+    @contextmanager
+    def _file_lock(self, filename: str) -> Generator[None, None, None]:
+        """指定されたファイル名に対するロックを取得するコンテキストマネージャ。
+
+        ロック解放時に辞書からエントリを削除してメモリリークを防ぐ。
 
         Args:
             filename: ファイル名
-
-        Returns:
-            そのファイル専用のロックオブジェクト
         """
         with self._locks_lock:
-            if filename not in self._file_locks:
-                self._file_locks[filename] = threading.Lock()
-            return self._file_locks[filename]
+            lock = self._file_locks.setdefault(filename, threading.Lock())
+
+        lock.acquire()
+        try:
+            yield
+        finally:
+            lock.release()
+            with self._locks_lock:
+                # 他のスレッドが既に削除している可能性があるため、存在確認なしで削除
+                self._file_locks.pop(filename, None)
 
     def upload(self, source_path: str, destination_filename: str) -> None:
         """Google Drive にファイルをアップロードする。
@@ -118,7 +126,7 @@ class GoogleDriveProvider:
         Raises:
             RuntimeError: アップロード失敗時
         """
-        with self._get_lock_for_file(destination_filename):
+        with self._file_lock(destination_filename):
             logger.info(
                 f"Uploading {source_path} to Google Drive folder {self.folder_id} "
                 f"as {destination_filename}..."

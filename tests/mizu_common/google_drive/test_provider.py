@@ -498,7 +498,7 @@ def test_upload_releases_file_lock_on_exception(
         upload()を実行し、例外が発生する。
 
     Assert:
-        例外が発生してもファイルロックが解放されること。
+        例外が発生してもファイルロックが解放され、辞書から削除されること。
     """
     # Arrange
     _, mock_list_req, _ = mock_gdrive_files
@@ -510,6 +510,33 @@ def test_upload_releases_file_lock_on_exception(
     with pytest.raises(RuntimeError, match="API Error"):
         gdrive_provider.upload(test_file, "test.txt")
 
-    # 例外発生後もファイルロックが解放されていることを確認
-    file_lock = gdrive_provider._get_lock_for_file("test.txt")
-    assert file_lock.locked() is False
+    # 例外発生後、ファイルロックが辞書から削除されていることを確認
+    assert "test.txt" not in gdrive_provider._file_locks
+
+
+def test_file_lock_is_removed_after_upload(
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
+    test_file: str,
+) -> None:
+    """アップロード完了後にファイルロックが削除されること.
+
+    Arrange:
+        新規ファイル作成のモックを設定する。
+
+    Act:
+        upload()を実行する。
+
+    Assert:
+        アップロード完了後、ファイルロックが辞書から削除されること。
+    """
+    # Arrange
+    _, mock_list_req, mock_create_req = mock_gdrive_files
+    mock_list_req.execute.return_value = {"files": []}
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    # Act
+    gdrive_provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert "test.txt" not in gdrive_provider._file_locks
