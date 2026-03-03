@@ -60,7 +60,8 @@ class GoogleDriveProvider:
         self.creds = credentials
         self.service = drive_service or build("drive", "v3", credentials=credentials)
         self._file_locks: dict[str, threading.Lock] = {}
-        self._locks_lock = threading.Lock()  # _file_locks 辞書の保護用
+        self._folder_locks: dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()  # ロック辞書の保護用
 
     @classmethod
     def from_credentials(
@@ -112,6 +113,28 @@ class GoogleDriveProvider:
             with self._locks_lock:
                 # 他のスレッドが既に削除している可能性があるため、存在確認なしで削除
                 self._file_locks.pop(filename, None)
+
+    @contextmanager
+    def _folder_lock(self, folder_path: str) -> Generator[None, None, None]:
+        """指定されたフォルダパスに対するロックを取得するコンテキストマネージャ。
+
+        異なるファイル名で同じフォルダパスを使用する場合の競合を防ぐ。
+        ロック解放時に辞書からエントリを削除してメモリリークを防ぐ。
+
+        Args:
+            folder_path: フォルダパス（例: "folder/sub"）
+        """
+        with self._locks_lock:
+            lock = self._folder_locks.setdefault(folder_path, threading.Lock())
+
+        lock.acquire()
+        try:
+            yield
+        finally:
+            lock.release()
+            with self._locks_lock:
+                # 他のスレッドが既に削除している可能性があるため、存在確認なしで削除
+                self._folder_locks.pop(folder_path, None)
 
     def upload(self, source_path: str, destination_filename: str) -> None:
         """Google Drive にファイルをアップロードする。
@@ -203,6 +226,7 @@ class GoogleDriveProvider:
         """フォルダパスを確保し、最終的なフォルダIDを返す。
 
         存在しないフォルダは新規作成する。
+        同じフォルダパスへ同時にアクセスする場合の競合を防ぐためロックを使用する。
 
         Args:
             path_parts: フォルダ名のリスト（例: ["folder", "subfolder"]）
@@ -210,18 +234,20 @@ class GoogleDriveProvider:
         Returns:
             最終的なフォルダID
         """
-        logger.info(f"Ensuring folder path: {'/'.join(path_parts)}")
-        current_parent_id = self.folder_id
+        folder_path = "/".join(path_parts)
+        with self._folder_lock(folder_path):
+            logger.info(f"Ensuring folder path: {folder_path}")
+            current_parent_id = self.folder_id
 
-        for folder_name in path_parts:
-            sanitized_name = self.sanitize_name(folder_name)
-            folder_id = self._find_folder(sanitized_name, current_parent_id)
-            if folder_id is None:
-                folder_id = self._create_folder(sanitized_name, current_parent_id)
-            current_parent_id = folder_id
+            for folder_name in path_parts:
+                sanitized_name = self.sanitize_name(folder_name)
+                folder_id = self._find_folder(sanitized_name, current_parent_id)
+                if folder_id is None:
+                    folder_id = self._create_folder(sanitized_name, current_parent_id)
+                current_parent_id = folder_id
 
-        logger.info(f"Folder path resolved to ID: {current_parent_id}")
-        return current_parent_id
+            logger.info(f"Folder path resolved to ID: {current_parent_id}")
+            return current_parent_id
 
     def _find_folder_path(self, path_parts: list[str]) -> str | None:
         """フォルダパスを検索し、存在すれば最終フォルダIDを返す。

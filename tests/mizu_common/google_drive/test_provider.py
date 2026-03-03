@@ -540,3 +540,156 @@ def test_file_lock_is_removed_after_upload(
 
     # Assert
     assert "test.txt" not in gdrive_provider._file_locks
+
+
+def test_concurrent_upload_to_same_folder_path_does_not_create_duplicate_folders(
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
+    test_file: str,
+) -> None:
+    """同じフォルダパスへの並行アップロードで重複フォルダが作成されないこと.
+
+    Arrange:
+        同じフォルダパス(folder/sub)を使用する異なる2つのファイルを用意する。
+        フォルダ作成処理内で並行実行を検出するためのカウンターを設定する。
+
+    Act:
+        2つのスレッドで異なるファイルを同じフォルダに並行アップロードする。
+
+    Assert:
+        同時に実行されるフォルダ作成処理が最大1つであること。
+    """
+    # Arrange
+    import threading
+
+    mock_files, mock_list_req, mock_create_req = mock_gdrive_files
+
+    # _ensure_folder_path内の並行実行数を追跡
+    concurrent_count = 0
+    max_concurrent = 0
+    count_lock = threading.Lock()
+    can_proceed = threading.Event()
+
+    # 両方のスレッドが開始したことを検知するカウンター
+    started_count = 0
+    started_lock = threading.Lock()
+    both_started = threading.Event()
+
+    folder_created = False
+    folder_create_count = 0
+
+    def mock_folder_create(*_: Any, **__: Any) -> dict[str, str]:
+        nonlocal concurrent_count, max_concurrent, folder_created, folder_create_count
+
+        # フォルダ作成の場合のみ並行性をチェック
+        with count_lock:
+            concurrent_count += 1
+            max_concurrent = max(max_concurrent, concurrent_count)
+
+        can_proceed.wait(timeout=5.0)
+
+        with count_lock:
+            concurrent_count -= 1
+
+        # フォルダ作成は1回だけ行われるべき
+        if not folder_created:
+            folder_created = True
+            folder_create_count += 1
+            return {"id": "folder_id"}
+        else:
+            # 2回目のフォルダ作成は検索で見つかるはず
+            return {"id": "folder_id"}
+
+    # ファイル検索: なし、フォルダ検索: なし → フォルダ作成
+    # ファイル検索のために_find_folder_pathが呼ばれるのでその設定
+    call_count = 0
+
+    def mock_list_execute(*_: Any, **__: Any) -> dict[str, Any]:
+        nonlocal call_count
+        call_count += 1
+        # 最初の呼び出しは_find_folder_path（ファイル検索前）
+        # 次は_ensure_folder_path内のフォルダ検索
+        return {"files": []}
+
+    mock_list_req.execute.side_effect = mock_list_execute
+    mock_create_req.execute.side_effect = mock_folder_create
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    provider = gdrive_provider
+
+    results: list[str] = []
+    errors: list[Exception] = []
+
+    def upload_file1() -> None:
+        nonlocal started_count
+        with started_lock:
+            started_count += 1
+            if started_count == 2:
+                both_started.set()
+        try:
+            provider.upload(test_file, "folder/sub/file1.txt")
+            results.append("file1_done")
+        except Exception as e:
+            errors.append(e)
+
+    def upload_file2() -> None:
+        nonlocal started_count
+        with started_lock:
+            started_count += 1
+            if started_count == 2:
+                both_started.set()
+        try:
+            provider.upload(test_file, "folder/sub/file2.txt")
+            results.append("file2_done")
+        except Exception as e:
+            errors.append(e)
+
+    # Act
+    thread1 = threading.Thread(target=upload_file1)
+    thread2 = threading.Thread(target=upload_file2)
+
+    thread1.start()
+    thread2.start()
+
+    # 両方のスレッドが開始したことを確認してから進行を許可
+    both_started.wait(timeout=5.0)
+    can_proceed.set()
+
+    thread1.join(timeout=5.0)
+    thread2.join(timeout=5.0)
+
+    # Assert
+    assert len(errors) == 0, f"Unexpected errors: {errors}"
+    assert len(results) == 2, "Both uploads should complete"
+    assert max_concurrent == 1, (
+        f"Expected max 1 concurrent folder creation, got {max_concurrent}"
+    )
+
+
+def test_folder_lock_is_removed_after_upload(
+    mock_gdrive_files: tuple[Any, Any, Any],
+    gdrive_provider: GoogleDriveProvider,
+    test_file: str,
+) -> None:
+    """アップロード完了後にフォルダロックが削除されること.
+
+    Arrange:
+        パス区切り付きファイル名の新規作成モックを設定する。
+
+    Act:
+        upload()を実行する。
+
+    Assert:
+        アップロード完了後、フォルダロックが辞書から削除されること。
+    """
+    # Arrange
+    _, mock_list_req, mock_create_req = mock_gdrive_files
+    mock_list_req.execute.return_value = {"files": []}
+    mock_create_req.execute.return_value = {"id": "folder_id"}
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+
+    # Act
+    gdrive_provider.upload(test_file, "folder/sub/file.txt")
+
+    # Assert
+    assert "folder/sub" not in gdrive_provider._folder_locks
