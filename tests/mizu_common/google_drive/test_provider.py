@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mizu_common.google_drive_provider import GoogleDriveProvider
+from mizu_common.google_drive.provider import GoogleDriveProvider
 
 
 @pytest.fixture

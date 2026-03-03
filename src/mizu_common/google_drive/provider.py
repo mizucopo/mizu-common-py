@@ -7,9 +7,9 @@ from typing import Any
 
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 from mizu_common.constants.google_scope import GoogleScope
+from mizu_common.google_drive._locked_file_operations import _LockedFileOperations
 
 logger = logging.getLogger(__name__)
 
@@ -124,158 +124,13 @@ class GoogleDriveProvider:
                 f"as {destination_filename}..."
             )
 
-            existing_file_id = self._search_for_file(destination_filename)
+            ops = _LockedFileOperations(self)
+            existing_file_id = ops.search_for_file(destination_filename)
 
             if existing_file_id:
-                self._update_file(existing_file_id, source_path)
+                ops.update_file(existing_file_id, source_path)
             else:
-                self._create_file(source_path, destination_filename)
-
-    def _create_file(self, source_path: str, destination_filename: str) -> None:
-        """新規ファイルを作成してアップロードする。
-
-        Args:
-            source_path: ローカルファイルパス
-            destination_filename: Google Drive 上のファイル名
-                （パス区切り含む場合は適切なフォルダを作成）
-
-        Raises:
-            RuntimeError: アップロード失敗時
-        """
-        logger.info(f"Creating new file: {destination_filename}")
-
-        # パス解析
-        path_parts = destination_filename.split("/")
-        actual_filename = self.sanitize_name(path_parts[-1])
-        folder_parts = path_parts[:-1]
-
-        # 親フォルダIDの決定
-        if folder_parts:
-            parent_folder_id = self._ensure_folder_path(folder_parts)
-        else:
-            parent_folder_id = self.folder_id
-
-        media = MediaFileUpload(source_path, resumable=True, chunksize=self.CHUNK_SIZE)
-        file_metadata = {"name": actual_filename, "parents": [parent_folder_id]}
-
-        request = self.service.files().create(
-            body=file_metadata,  # type: ignore[arg-type]
-            media_body=media,
-            fields="id",
-        )
-
-        self._execute_upload(request, source_path)
-
-    def _update_file(self, file_id: str, source_path: str) -> None:
-        """既存ファイルを更新する。
-
-        Args:
-            file_id: 更新するファイルの ID
-            source_path: ローカルファイルパス
-
-        Raises:
-            RuntimeError: アップロード失敗時
-        """
-        logger.info(f"Updating existing file (ID: {file_id})")
-
-        # MediaFileUpload の作成（チャンキング有効）
-        media = MediaFileUpload(source_path, resumable=True, chunksize=self.CHUNK_SIZE)
-
-        # files().update() リクエストの構築
-        request = self.service.files().update(
-            fileId=file_id, media_body=media, fields="id"
-        )
-
-        # チャンク単位のアップロード実行（リトライ付き）
-        self._execute_upload(request, source_path)
-
-    def _execute_upload(self, request: Any, source_path: str) -> None:
-        """チャンク単位でアップロードを実行する。
-
-        Args:
-            request: Google Drive API リクエストオブジェクト
-            source_path: アップロードするファイルパス
-
-        Raises:
-            Exception: アップロード失敗時（元の例外がそのまま伝播）
-        """
-        response = None
-        status = None
-
-        try:
-            while response is None:
-                status, response = request.next_chunk(num_retries=self.MAX_RETRIES)
-
-            file_id = str(response.get("id"))
-            logger.info(f"Upload complete. File ID: {file_id}")
-
-        except Exception as e:
-            logger.error(
-                f"Google Drive upload failed for {source_path}. "
-                f"Last status: {status}, Last response: {response}. "
-                f"Error details: {str(e)}"
-            )
-            raise
-
-    def _search_for_file(self, filename: str) -> str | None:
-        """Google Drive フォルダ内で同名ファイルを検索する。
-
-        Args:
-            filename: 検索するファイル名（パス区切り含む場合は適切なフォルダ内で検索）
-
-        Returns:
-            ファイル ID（存在する場合）、None（存在しない場合）
-
-        Raises:
-            Exception: 検索 API 呼び出し失敗時（元の例外がそのまま伝播）
-        """
-        # パス解析
-        path_parts = filename.split("/")
-        actual_filename = self.sanitize_name(path_parts[-1])
-        folder_parts = path_parts[:-1]
-
-        # 親フォルダIDの決定
-        if folder_parts:
-            parent_id = self._find_folder_path(folder_parts)
-            if parent_id is None:
-                # フォルダが存在しない = ファイルも存在しない
-                logger.debug(f"Folder path not found: {'/'.join(folder_parts)}")
-                return None
-        else:
-            parent_id = self.folder_id
-
-        # ファイル名をエスケープしてクエリインジェクションを防ぐ
-        escaped_name = actual_filename.replace("\\", "\\\\").replace("'", "\\'")
-
-        query = (
-            f"name = '{escaped_name}' and '{parent_id}' in parents and trashed = false"
-        )
-
-        try:
-            results = (
-                self.service.files()
-                .list(q=query, spaces="drive", fields="files(id, name)")
-                .execute()
-            )
-            files = results.get("files", [])
-
-            if not files:
-                logger.debug(f"No existing file found with name: {filename}")
-                return None
-
-            if len(files) > 1:
-                logger.warning(
-                    f"Found {len(files)} files with name '{filename}', "
-                    f"updating the first one (ID: {files[0]['id']})"
-                )
-
-            file_id = str(files[0]["id"])
-            logger.info(f"Found existing file: {filename} (ID: {file_id})")
-            return file_id
-
-        except Exception as e:
-            logger.error(f"Failed to search for existing file '{filename}': {str(e)}")
-            raise
+                ops.create_file(source_path, destination_filename)
 
     def _find_folder(self, name: str, parent_id: str) -> str | None:
         """指定した親フォルダ内でフォルダを検索する。
