@@ -9,7 +9,7 @@ from mizu_common.exceptions.stale_lock_error import StaleLockError
 from mizu_common.exceptions.youtube_api_error import YouTubeApiError
 from mizu_common.exceptions.youtube_http_error import YouTubeHttpError
 from mizu_common.exceptions.youtube_network_error import YouTubeNetworkError
-from mizu_common.google_drive_provider import GoogleDriveProvider
+from mizu_common.google_drive.provider import GoogleDriveProvider
 from mizu_common.google_oauth_client import GoogleOAuthClient
 from mizu_common.lock_manager import LockManager
 from mizu_common.logging_configurator import LoggingConfigurator
