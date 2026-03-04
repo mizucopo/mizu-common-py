@@ -9,8 +9,18 @@ from mizu_common.discord_client import DiscordClient
 from mizu_common.exceptions.discord_webhook_error import DiscordWebhookError
 from mizu_common.models.discord_embed import DiscordEmbed
 
+TEST_WEBHOOK_URL = "https://discord.com/api/webhooks/123/abc"
 
-def test_send_message_sends_text_message_successfully(mocker: Any) -> None:
+
+@pytest.fixture
+def discord_client() -> DiscordClient:
+    """テスト用DiscordClientインスタンスを返す."""
+    return DiscordClient(TEST_WEBHOOK_URL)
+
+
+def test_send_message_sends_text_message_successfully(
+    mocker: Any, discord_client: DiscordClient
+) -> None:
     """send_messageがテキストメッセージを正常に送信すること.
 
     Arrange:
@@ -31,20 +41,20 @@ def test_send_message_sends_text_message_successfully(mocker: Any) -> None:
         "mizu_common.discord_client.requests.post", return_value=mock_response
     )
 
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
-
     # Act
-    client.send_message("Hello, Discord!")
+    discord_client.send_message("Hello, Discord!")
 
     # Assert
     mock_post.assert_called_once_with(
-        "https://discord.com/api/webhooks/123/abc",
+        TEST_WEBHOOK_URL,
         json={"content": "Hello, Discord!"},
         timeout=30,
     )
 
 
-def test_send_message_with_username_and_avatar(mocker: Any) -> None:
+def test_send_message_with_username_and_avatar(
+    mocker: Any, discord_client: DiscordClient
+) -> None:
     """send_messageがユーザー名とアバターを含めて送信されること.
 
     Arrange:
@@ -63,10 +73,9 @@ def test_send_message_with_username_and_avatar(mocker: Any) -> None:
     mock_post = mocker.patch(
         "mizu_common.discord_client.requests.post", return_value=mock_response
     )
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
 
     # Act
-    client.send_message(
+    discord_client.send_message(
         "Hello!",
         username="Bot",
         avatar_url="https://example.com/avatar.png",
@@ -74,7 +83,7 @@ def test_send_message_with_username_and_avatar(mocker: Any) -> None:
 
     # Assert
     mock_post.assert_called_once_with(
-        "https://discord.com/api/webhooks/123/abc",
+        TEST_WEBHOOK_URL,
         json={
             "content": "Hello!",
             "username": "Bot",
@@ -84,7 +93,9 @@ def test_send_message_with_username_and_avatar(mocker: Any) -> None:
     )
 
 
-def test_send_message_raises_error_on_failure(mocker: Any) -> None:
+def test_send_message_raises_error_on_failure(
+    mocker: Any, discord_client: DiscordClient
+) -> None:
     """send_messageが失敗時にDiscordWebhookErrorが発生すること.
 
     Arrange:
@@ -101,14 +112,15 @@ def test_send_message_raises_error_on_failure(mocker: Any) -> None:
     mock_response.status_code = 404
     mock_response.text = "Unknown Webhook"
     mocker.patch("mizu_common.discord_client.requests.post", return_value=mock_response)
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
 
     # Act & Assert
     with pytest.raises(DiscordWebhookError, match="Discord通知の送信に失敗しました"):
-        client.send_message("Hello!")
+        discord_client.send_message("Hello!")
 
 
-def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
+def test_send_embed_sends_embed_message_successfully(
+    mocker: Any, discord_client: DiscordClient
+) -> None:
     """send_embedがEmbedメッセージを正常に送信すること.
 
     Arrange:
@@ -129,7 +141,6 @@ def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
     mock_post = mocker.patch(
         "mizu_common.discord_client.requests.post", return_value=mock_response
     )
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
     embed = DiscordEmbed(
         title="Test Title",
         description="Test Description",
@@ -138,11 +149,11 @@ def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
     )
 
     # Act
-    client.send_embed(embed)
+    discord_client.send_embed(embed)
 
     # Assert
     mock_post.assert_called_once_with(
-        "https://discord.com/api/webhooks/123/abc",
+        TEST_WEBHOOK_URL,
         json={
             "embeds": [
                 {
@@ -157,7 +168,9 @@ def test_send_embed_sends_embed_message_successfully(mocker: Any) -> None:
     )
 
 
-def test_send_embeds_with_multiple_embeds(mocker: Any) -> None:
+def test_send_embeds_with_multiple_embeds(
+    mocker: Any, discord_client: DiscordClient
+) -> None:
     """send_embedsが複数のEmbedを送信できること.
 
     Arrange:
@@ -177,20 +190,21 @@ def test_send_embeds_with_multiple_embeds(mocker: Any) -> None:
     mock_post = mocker.patch(
         "mizu_common.discord_client.requests.post", return_value=mock_response
     )
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
     embeds = [
         DiscordEmbed(title="First"),
         DiscordEmbed(title="Second"),
     ]
     # Act
-    client.send_embeds(embeds)
+    discord_client.send_embeds(embeds)
 
     # Assert
     call_args = mock_post.call_args
     assert len(call_args[1]["json"]["embeds"]) == 2
 
 
-def test_send_embeds_raises_error_when_exceeds_limit() -> None:
+def test_send_embeds_raises_error_when_exceeds_limit(
+    discord_client: DiscordClient,
+) -> None:
     """send_embedsがEmbed数11以上でValueErrorを発生すること.
 
     Arrange:
@@ -200,9 +214,8 @@ def test_send_embeds_raises_error_when_exceeds_limit() -> None:
         ValueErrorが発生すること。
     """
     # Arrange
-    client = DiscordClient("https://discord.com/api/webhooks/123/abc")
     embeds = [DiscordEmbed(title=f"Title {i}") for i in range(11)]
 
     # Act & Assert
     with pytest.raises(ValueError, match="Embed数は最大10件までです"):
-        client.send_embeds(embeds)
+        discord_client.send_embeds(embeds)
