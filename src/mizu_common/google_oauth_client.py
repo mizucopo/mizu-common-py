@@ -86,7 +86,7 @@ class GoogleOAuthClient:
                 "refresh_token": self._refresh_token,
                 "grant_type": "refresh_token",
             },
-            timeout=30,
+            timeout=DEFAULT_TIMEOUT,
         )
 
         if response.status_code != 200:
