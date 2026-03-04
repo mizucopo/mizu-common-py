@@ -45,13 +45,12 @@ class LockManager:
         Returns:
             ロックファイルの更新時刻がstale_hours時間以上前の場合はTrue
         """
-        if not self._lock_path.exists():
-            return False
-
         try:
             mtime = self._lock_path.stat().st_mtime
             age_hours = (time.time() - mtime) / 3600
             return age_hours >= self._stale_hours
+        except FileNotFoundError:
+            return False
         except OSError:
             return False
 

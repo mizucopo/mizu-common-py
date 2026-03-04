@@ -25,6 +25,13 @@ class GoogleDriveProvider:
     MAX_RETRIES = 5
     SCOPES = [GoogleScope.DRIVE_FILE]
 
+    # サニタイズ用定数
+    SANITIZE_PATTERN = r'[\\:*?"<>|\r\n\t]'
+    SANITIZE_REPLACEMENT = "_"
+
+    # Google Drive mimeType
+    FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+
     @staticmethod
     def sanitize_name(name: str) -> str:
         """Google Drive で使用できない文字を置換する。
@@ -38,7 +45,7 @@ class GoogleDriveProvider:
             サニタイズされた名前
         """
         # 禁止文字: \ : * ? " < > | と制御文字（/ はパス区切りとして使用するため除外）
-        sanitized = re.sub(r'[\\:*?"<>|\r\n\t]', "_", name)
+        sanitized = re.sub(GoogleDriveProvider.SANITIZE_PATTERN, "_", name)
         # 先頭・末尾のドットとスペースを削除
         sanitized = sanitized.strip(". ")
         return sanitized if sanitized else "untitled"
@@ -191,7 +198,7 @@ class GoogleDriveProvider:
         query = (
             f"name = '{escaped_name}' and "
             f"'{parent_id}' in parents and "
-            f"mimeType = 'application/vnd.google-apps.folder' and "
+            f"mimeType = '{self.FOLDER_MIME_TYPE}' and "
             f"trashed = false"
         )
         logger.debug(f"Searching for folder '{name}' in parent '{parent_id}'")
@@ -222,7 +229,7 @@ class GoogleDriveProvider:
         file_metadata = {
             "name": name,
             "parents": [parent_id],
-            "mimeType": "application/vnd.google-apps.folder",
+            "mimeType": self.FOLDER_MIME_TYPE,
         }
         result = (
             self.service.files()
