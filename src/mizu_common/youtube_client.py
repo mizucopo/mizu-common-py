@@ -25,6 +25,11 @@ class YouTubeClient:
     BASE_URL = "https://www.googleapis.com/youtube/v3"
     MAX_RESULTS_PER_PAGE = 50
 
+    # APIエンドポイント
+    ENDPOINT_CHANNELS = "channels"
+    ENDPOINT_PLAYLIST_ITEMS = "playlistItems"
+    ENDPOINT_VIDEOS = "videos"
+
     def __init__(self, oauth_client: GoogleOAuthClient) -> None:
         """クライアントを初期化する.
 
@@ -86,7 +91,7 @@ class YouTubeClient:
             "id": channel_id,
         }
 
-        data = self._make_request("channels", params)
+        data = self._make_request(self.ENDPOINT_CHANNELS, params)
 
         items = data.get("items", [])
         if not items:
@@ -125,7 +130,7 @@ class YouTubeClient:
             if next_page_token:
                 params["pageToken"] = next_page_token
 
-            data = self._make_request("playlistItems", params)
+            data = self._make_request(self.ENDPOINT_PLAYLIST_ITEMS, params)
 
             for item in data.get("items", []):
                 video_id = item["contentDetails"]["videoId"]
@@ -222,7 +227,7 @@ class YouTubeClient:
             "id": ",".join(video_ids),
         }
 
-        data = self._make_request("videos", params)
+        data = self._make_request(self.ENDPOINT_VIDEOS, params)
 
         videos: list[YouTubeVideoInfo] = []
         for item in data.get("items", []):

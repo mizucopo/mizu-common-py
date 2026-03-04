@@ -26,6 +26,20 @@ class _LockedFileOperations:
         """
         self._provider = provider
 
+    def _parse_path(self, filepath: str) -> tuple[str, list[str]]:
+        """ファイルパスを解析してファイル名とフォルダパーツに分割する。
+
+        Args:
+            filepath: ファイルパス（パス区切り含む場合あり）
+
+        Returns:
+            (ファイル名, フォルダパーツのリスト) のタプル
+        """
+        path_parts = filepath.split("/")
+        actual_filename = self._provider.sanitize_name(path_parts[-1])
+        folder_parts = path_parts[:-1]
+        return actual_filename, folder_parts
+
     def search_for_file(self, filename: str) -> str | None:
         """Google Drive フォルダ内で同名ファイルを検索する。
 
@@ -39,9 +53,7 @@ class _LockedFileOperations:
             Exception: 検索 API 呼び出し失敗時（元の例外がそのまま伝播）
         """
         # パス解析
-        path_parts = filename.split("/")
-        actual_filename = self._provider.sanitize_name(path_parts[-1])
-        folder_parts = path_parts[:-1]
+        actual_filename, folder_parts = self._parse_path(filename)
 
         # 親フォルダIDの決定
         if folder_parts:
@@ -100,9 +112,7 @@ class _LockedFileOperations:
         logger.info(f"Creating new file: {destination_filename}")
 
         # パス解析
-        path_parts = destination_filename.split("/")
-        actual_filename = self._provider.sanitize_name(path_parts[-1])
-        folder_parts = path_parts[:-1]
+        actual_filename, folder_parts = self._parse_path(destination_filename)
 
         # 親フォルダIDの決定
         if folder_parts:

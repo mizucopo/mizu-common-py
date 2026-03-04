@@ -18,6 +18,8 @@ class DiscordClient:
     Webhook URLを使用してDiscordチャンネルにメッセージを送信する。
     """
 
+    MAX_EMBEDS = 10
+
     def __init__(self, webhook_url: str) -> None:
         """クライアントを初期化する.
 
@@ -42,12 +44,7 @@ class DiscordClient:
         Raises:
             DiscordWebhookError: メッセージの送信に失敗した場合
         """
-        payload: dict[str, Any] = {"content": content}
-        if username is not None:
-            payload["username"] = username
-        if avatar_url is not None:
-            payload["avatar_url"] = avatar_url
-
+        payload = self._build_payload({"content": content}, username, avatar_url)
         self._send_request(payload)
 
     def send_embed(
@@ -66,12 +63,9 @@ class DiscordClient:
         Raises:
             DiscordWebhookError: メッセージの送信に失敗した場合
         """
-        payload: dict[str, Any] = {"embeds": [embed.to_dict()]}
-        if username is not None:
-            payload["username"] = username
-        if avatar_url is not None:
-            payload["avatar_url"] = avatar_url
-
+        payload = self._build_payload(
+            {"embeds": [embed.to_dict()]}, username, avatar_url
+        )
         self._send_request(payload)
 
     def send_embeds(
@@ -91,16 +85,35 @@ class DiscordClient:
             ValueError: Embed数が10を超える場合
             DiscordWebhookError: メッセージの送信に失敗した場合
         """
-        if len(embeds) > 10:
-            raise ValueError("Embed数は最大10件までです")
+        if len(embeds) > self.MAX_EMBEDS:
+            raise ValueError(f"Embed数は最大{self.MAX_EMBEDS}件までです")
 
-        payload: dict[str, Any] = {"embeds": [e.to_dict() for e in embeds]}
-        if username is not None:
-            payload["username"] = username
-        if avatar_url is not None:
-            payload["avatar_url"] = avatar_url
-
+        payload = self._build_payload(
+            {"embeds": [e.to_dict() for e in embeds]}, username, avatar_url
+        )
         self._send_request(payload)
+
+    def _build_payload(
+        self,
+        base_payload: dict[str, Any],
+        username: str | None,
+        avatar_url: str | None,
+    ) -> dict[str, Any]:
+        """Webhookペイロードを構築する.
+
+        Args:
+            base_payload: 基本ペイロード（contentまたはembeds）
+            username: オーバーライドするユーザー名
+            avatar_url: オーバーライドするアバターURL
+
+        Returns:
+            完成したペイロード
+        """
+        if username is not None:
+            base_payload["username"] = username
+        if avatar_url is not None:
+            base_payload["avatar_url"] = avatar_url
+        return base_payload
 
     def _send_request(self, payload: dict[str, Any]) -> None:
         """Webhookリクエストを送信する.
