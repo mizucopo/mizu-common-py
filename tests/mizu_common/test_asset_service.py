@@ -761,3 +761,115 @@ def test_water_filling_allocation_case_13_error(
     # Act & Assert
     with pytest.raises(ValueError, match=str(case["expected_error"])):
         service.adjust_assets(calculated_assets, adjustment_amount)
+
+
+def test_deposit_waterfilling_two_underweight_assets(
+    service: AssetService,
+) -> None:
+    """入金時のwater-fillingで水位の低いアセットが優先されること
+
+    Arrange
+    - 2つの不足アセットと2つの超過アセットを準備
+    Act
+    - adjust_assetsを実行
+    Assert
+    - 最も水位の低いアセットに多く配分されること
+    - flow_amountの合計がflowと一致すること
+    """
+    # Arrange
+    assets = (
+        Asset(name="stocks", amount=Decimal("10000"), rate=Decimal("0.50")),
+        Asset(name="bonds", amount=Decimal("10000"), rate=Decimal("0.30")),
+        Asset(name="reit", amount=Decimal("10000"), rate=Decimal("0.15")),
+        Asset(name="gold", amount=Decimal("10000"), rate=Decimal("0.05")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = service.adjust_assets(calculated_assets, Decimal("10001"))
+
+    # Assert
+    flow_map = {
+        calc.asset.name: calc.flow_amount
+        for calc in result.calculated_assets
+    }
+    assert flow_map["stocks"] == Decimal("8751")
+    assert flow_map["bonds"] == Decimal("1250")
+    assert flow_map["reit"] == Decimal("0")
+    assert flow_map["gold"] == Decimal("0")
+    total = sum(calc.flow_amount for calc in result.calculated_assets)
+    assert total == Decimal("10001")
+
+
+def test_withdrawal_waterfilling_two_overweight_assets(
+    service: AssetService,
+) -> None:
+    """出金時のwater-fillingで水位の高いアセットが優先されること
+
+    Arrange
+    - 2つの超過アセットと2つの不足アセットを準備
+    Act
+    - adjust_assetsを実行
+    Assert
+    - 最も水位の高いアセットから多く引出されること
+    - flow_amountの合計がflowと一致すること
+    """
+    # Arrange
+    assets = (
+        Asset(name="stocks", amount=Decimal("10000"), rate=Decimal("0.40")),
+        Asset(name="bonds", amount=Decimal("10000"), rate=Decimal("0.30")),
+        Asset(name="reit", amount=Decimal("50000"), rate=Decimal("0.20")),
+        Asset(name="gold", amount=Decimal("30000"), rate=Decimal("0.10")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = service.adjust_assets(calculated_assets, Decimal("-20000"))
+
+    # Assert
+    flow_map = {
+        calc.asset.name: calc.flow_amount
+        for calc in result.calculated_assets
+    }
+    assert flow_map["gold"] == Decimal("-10000")
+    assert flow_map["reit"] == Decimal("-10000")
+    assert flow_map["stocks"] == Decimal("0")
+    assert flow_map["bonds"] == Decimal("0")
+    total = sum(calc.flow_amount for calc in result.calculated_assets)
+    assert total == Decimal("-20000")
+
+
+def test_all_assets_at_target_deposit_distributes_proportionally(
+    service: AssetService,
+) -> None:
+    """全アセット目標通りで入金がrate比例配分されること
+
+    Arrange
+    - 全アセットが目標比率どおりのデータを準備
+    Act
+    - adjust_assetsを実行
+    Assert
+    - 各アセットにrate比例で配分されること
+    - flow_amountの合計がflowと一致すること
+    """
+    # Arrange
+    assets = (
+        Asset(name="stocks", amount=Decimal("30000"), rate=Decimal("0.50")),
+        Asset(name="bonds", amount=Decimal("18000"), rate=Decimal("0.30")),
+        Asset(name="reit", amount=Decimal("12000"), rate=Decimal("0.20")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = service.adjust_assets(calculated_assets, Decimal("10000"))
+
+    # Assert
+    flow_map = {
+        calc.asset.name: calc.flow_amount
+        for calc in result.calculated_assets
+    }
+    assert flow_map["stocks"] == Decimal("5000")
+    assert flow_map["bonds"] == Decimal("3000")
+    assert flow_map["reit"] == Decimal("2000")
+    total = sum(calc.flow_amount for calc in result.calculated_assets)
+    assert total == Decimal("10000")
