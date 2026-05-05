@@ -235,9 +235,7 @@ def test_adjust_assets_empty_calculated_with_flow_raises(
     """
     # Arrange
     # Act & Assert
-    with pytest.raises(
-        ValueError, match="calculated_assets is empty"
-    ):
+    with pytest.raises(ValueError, match="calculated_assets is empty"):
         service.adjust_assets((), Decimal("100000"))
 
 
@@ -789,10 +787,7 @@ def test_deposit_waterfilling_two_underweight_assets(
     result = service.adjust_assets(calculated_assets, Decimal("10001"))
 
     # Assert
-    flow_map = {
-        calc.asset.name: calc.flow_amount
-        for calc in result.calculated_assets
-    }
+    flow_map = {calc.asset.name: calc.flow_amount for calc in result.calculated_assets}
     assert flow_map["stocks"] == Decimal("8751")
     assert flow_map["bonds"] == Decimal("1250")
     assert flow_map["reit"] == Decimal("0")
@@ -827,10 +822,7 @@ def test_withdrawal_waterfilling_two_overweight_assets(
     result = service.adjust_assets(calculated_assets, Decimal("-20000"))
 
     # Assert
-    flow_map = {
-        calc.asset.name: calc.flow_amount
-        for calc in result.calculated_assets
-    }
+    flow_map = {calc.asset.name: calc.flow_amount for calc in result.calculated_assets}
     assert flow_map["gold"] == Decimal("-10000")
     assert flow_map["reit"] == Decimal("-10000")
     assert flow_map["stocks"] == Decimal("0")
@@ -864,10 +856,7 @@ def test_all_assets_at_target_deposit_distributes_proportionally(
     result = service.adjust_assets(calculated_assets, Decimal("10000"))
 
     # Assert
-    flow_map = {
-        calc.asset.name: calc.flow_amount
-        for calc in result.calculated_assets
-    }
+    flow_map = {calc.asset.name: calc.flow_amount for calc in result.calculated_assets}
     assert flow_map["stocks"] == Decimal("5000")
     assert flow_map["bonds"] == Decimal("3000")
     assert flow_map["reit"] == Decimal("2000")

@@ -70,8 +70,7 @@ class AssetService:
 
         if not calculated_assets:
             raise ValueError(
-                "calculated_assets is empty. "
-                "Run calculate_current_rates first."
+                "calculated_assets is empty. Run calculate_current_rates first."
             )
 
         return self._allocate(calculated_assets, adjustment_amount)
@@ -103,16 +102,12 @@ class AssetService:
             raise ValueError("final total would be negative")
 
         direction = 1 if flow > 0 else -1
-        exact_amounts = self._water_filling(
-            assets, flow, final_total, direction
-        )
+        exact_amounts = self._water_filling(assets, flow, final_total, direction)
         rounded_amounts = self._apply_largest_remainder(exact_amounts, flow)
 
         new_calculated_assets = []
         new_assets = []
-        for calc, amount in zip(
-            calculated_assets, rounded_amounts, strict=True
-        ):
+        for calc, amount in zip(calculated_assets, rounded_amounts, strict=True):
             new_calc = self._update_asset(calc, amount)
             new_calculated_assets.append(new_calc)
             new_assets.append(new_calc.asset)
@@ -159,18 +154,14 @@ class AssetService:
             if i > 0:
                 group_rate_sum += asset.rate
 
-            next_level = (
-                items[i + 1][2] if i + 1 < len(items) else final_total
-            )
+            next_level = items[i + 1][2] if i + 1 < len(items) else final_total
             level_delta = abs(next_level - current_level)
             cost = level_delta * group_rate_sum
 
             if cost <= remaining:
                 for j in range(i + 1):
                     item_idx, item_asset, _ = items[j]
-                    flow_amounts[item_idx] += (
-                        direction * level_delta * item_asset.rate
-                    )
+                    flow_amounts[item_idx] += direction * level_delta * item_asset.rate
                 remaining -= cost
                 current_level = next_level
             else:
@@ -191,17 +182,12 @@ class AssetService:
     ) -> list[Decimal]:
         """最大余剰法で端数処理を行う"""
         abs_amounts = [abs(a) for a in exact_amounts]
-        floored = [
-            a.to_integral_value(rounding=ROUND_FLOOR) for a in abs_amounts
-        ]
+        floored = [a.to_integral_value(rounding=ROUND_FLOOR) for a in abs_amounts]
 
         total_floored = sum(floored)
         remainder = abs(flow) - total_floored
 
-        fracs = [
-            (i, abs_amounts[i] - floored[i])
-            for i in range(len(abs_amounts))
-        ]
+        fracs = [(i, abs_amounts[i] - floored[i]) for i in range(len(abs_amounts))]
         fracs.sort(key=lambda x: -x[1])
 
         result = list(floored)
@@ -213,9 +199,7 @@ class AssetService:
         return [sign * r for r in result]
 
     @staticmethod
-    def _update_asset(
-        calc: AssetCalculation, amount: Decimal
-    ) -> AssetCalculation:
+    def _update_asset(calc: AssetCalculation, amount: Decimal) -> AssetCalculation:
         """アセットの金額とflow_amountを更新する"""
         new_asset = replace(calc.asset, amount=calc.asset.amount + amount)
         return replace(calc, asset=new_asset, flow_amount=amount)
