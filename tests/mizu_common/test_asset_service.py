@@ -873,3 +873,73 @@ def test_all_assets_at_target_deposit_distributes_proportionally(
     assert flow_map["reit"] == Decimal("2000")
     total = sum(calc.flow_amount for calc in result.calculated_assets)
     assert total == Decimal("10000")
+
+
+def test_public_api_includes_asset_classes() -> None:
+    """__all__にAssetService関連クラスが含まれること
+
+    Arrange
+    - mizu_commonパッケージをインポート
+    Act & Assert
+    - __all__に必要なクラスが含まれること
+    """
+    # Arrange
+    import mizu_common
+
+    # Act & Assert
+    assert "AssetService" in mizu_common.__all__
+    assert "Asset" in mizu_common.__all__
+    assert "AssetCalculation" in mizu_common.__all__
+    assert "AssetAdjustmentResult" in mizu_common.__all__
+    assert "OperationType" in mizu_common.__all__
+
+
+def test_adjustment_result_operation_type_deposit() -> None:
+    """正のadjustment_amountでDEPOSITが返されること"""
+    # Arrange
+    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = AssetAdjustmentResult(
+        assets=assets,
+        calculated_assets=calculated_assets,
+        adjustment_amount=Decimal("10000"),
+    )
+
+    # Assert
+    assert result.operation_type == OperationType.DEPOSIT
+
+
+def test_adjustment_result_operation_type_withdrawal() -> None:
+    """負のadjustment_amountでWITHDRAWALが返されること"""
+    # Arrange
+    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = AssetAdjustmentResult(
+        assets=assets,
+        calculated_assets=calculated_assets,
+        adjustment_amount=Decimal("-10000"),
+    )
+
+    # Assert
+    assert result.operation_type == OperationType.WITHDRAWAL
+
+
+def test_adjustment_result_operation_type_none() -> None:
+    """ゼロのadjustment_amountでNONEが返されること"""
+    # Arrange
+    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act
+    result = AssetAdjustmentResult(
+        assets=assets,
+        calculated_assets=calculated_assets,
+        adjustment_amount=Decimal("0"),
+    )
+
+    # Assert
+    assert result.operation_type == OperationType.NONE
