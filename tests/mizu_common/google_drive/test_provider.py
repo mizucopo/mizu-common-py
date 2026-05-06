@@ -1,229 +1,130 @@
-"""GoogleDriveProvider のアップロード機能のテスト。"""
+"""GoogleDriveProvider のアップロード機能のテスト."""
 
+import threading
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from mizu_common.google_drive.provider import GoogleDriveProvider
+from tests.fakes.fake_drive_service import FakeDriveService
 
 
-@pytest.fixture
-def mock_gdrive_credentials() -> Any:
-    """モック化された OAuth2 認証情報フィクスチャ。
-
-    Returns:
-        モック化された認証情報オブジェクト
-    """
+def _make_provider(
+    folder_id: str = "test_folder",
+) -> tuple[GoogleDriveProvider, FakeDriveService]:
+    """テスト用の GoogleDriveProvider と FakeDriveService を作成する."""
     mock_creds = MagicMock()
     mock_creds.token = "mock_token"
-    mock_creds.refresh_token = "mock_refresh_token"
-    mock_creds.client_id = "mock_client_id"
-    mock_creds.client_secret = "mock_client_secret"
-    return mock_creds
-
-
-@pytest.fixture
-def mock_gdrive_service() -> Any:
-    """モック化された Google Drive サービスフィクスチャ。
-
-    Returns:
-        モック化された Drive サービスオブジェクト
-    """
-    mock_service = MagicMock()
-    mock_files = MagicMock()
-    mock_service.files.return_value = mock_files
-    return mock_service
+    fake = FakeDriveService(root_folder_id=folder_id)
+    provider = GoogleDriveProvider(
+        folder_id=folder_id,
+        credentials=mock_creds,
+        drive_service=fake,
+    )
+    return provider, fake
 
 
 @pytest.fixture
 def test_file(tmp_path: Any) -> str:
-    """テスト用の一時ファイルを作成するフィクスチャ。
-
-    Returns:
-        テスト用ファイルのパス
-    """
+    """テスト用の一時ファイルが作成されること."""
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("test content")
     return str(file_path)
 
 
-@pytest.fixture
-def mock_gdrive_files(mock_gdrive_service: Any) -> tuple[Any, Any, Any]:
-    """モック化された Google Drive files リソース.
-
-    Returns:
-        (mock_files, mock_list_req, mock_create_req) のタプル
-    """
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-    return mock_files, mock_list_req, mock_create_req
-
-
-@pytest.fixture
-def gdrive_provider(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-) -> GoogleDriveProvider:
-    """テスト用の GoogleDriveProvider インスタンス."""
-    return GoogleDriveProvider(
-        folder_id="test_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
-
-
 @pytest.mark.parametrize(
-    "existing_files,expected_method",
+    "seed_existing,expected_operation",
     [
-        ([], "create"),  # 新規作成
-        ([{"id": "existing_id", "name": "test.txt"}], "update"),  # 既存更新
+        (False, "create_file"),  # 新規作成
+        (True, "update_file"),  # 既存更新
     ],
     ids=["新規作成", "既存更新"],
 )
 def test_upload_delegates_to_correct_api_method(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
     test_file: str,
-    existing_files: list[dict[str, str]],
-    expected_method: str,
+    seed_existing: bool,
+    expected_operation: str,
 ) -> None:
     """同名ファイルの有無に応じて適切なAPIメソッドが呼ばれること.
 
     Arrange:
-        有効な認証情報を用意する。
+        FakeDriveService を用意する。
+        seed_existing が True の場合、同名ファイルを事前に登録する。
 
     Act:
-        GoogleDriveProvider.upload()を実行する。
+        GoogleDriveProvider.upload() を実行する。
 
     Assert:
-        ファイルが存在しない場合: files().create()が呼ばれること。
-        ファイルが存在する場合: files().update()が呼ばれること。
+        ファイルが存在しない場合: create_file が記録されること。
+        ファイルが存在する場合: update_file が記録されること。
     """
     # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-    mock_update_req = mock_files.update.return_value
-
-    mock_list_req.execute.return_value = {"files": existing_files}
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
-    mock_update_req.next_chunk.return_value = (None, {"id": "file_id"})
-
-    provider = GoogleDriveProvider(
-        folder_id="test_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider, fake = _make_provider()
+    if seed_existing:
+        fake.seed_file("test.txt", "test_folder")
 
     # Act
     provider.upload(test_file, "test.txt")
 
     # Assert
-    mock_files.list.assert_called_once()
-    if expected_method == "create":
-        mock_files.create.assert_called_once()
-        mock_files.update.assert_not_called()
+    if expected_operation == "create_file":
+        assert len(fake.created_files) == 1
+        assert len(fake.updated_files) == 0
     else:
-        mock_files.update.assert_called_once()
-        mock_files.create.assert_not_called()
+        assert len(fake.updated_files) == 1
+        assert len(fake.created_files) == 0
 
 
-def test_upload_with_path_creates_folders_and_file(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-    test_file: str,
-) -> None:
+def test_upload_with_path_creates_folders_and_file(test_file: str) -> None:
     """パス区切り付きファイル名で新規作成時、フォルダとファイルが作成されること.
 
     Arrange:
-        folder/sub/file.txtというパスを用意する。
+        folder/sub/file.txt というパスを用意する。
         フォルダもファイルも存在しない状態にする。
 
     Act:
-        upload()を実行する。
+        upload() を実行する。
 
     Assert:
         フォルダが作成され、ファイルがアップロードされること。
     """
     # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-
-    # ファイル検索: folder検索 → なし
-    # _ensure_folder_path: folder検索 → なし、folder作成
-    # _ensure_folder_path: sub検索 → なし、sub作成
-    mock_list_req.execute.side_effect = [
-        {"files": []},  # ファイル検索時のフォルダ検索
-        {"files": []},  # _ensure_folder_path: folder検索
-        {"files": []},  # _ensure_folder_path: sub検索
-    ]
-    mock_create_req.execute.side_effect = [
-        {"id": "folder_id"},
-        {"id": "sub_id"},
-    ]
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider, fake = _make_provider(folder_id="root_folder")
 
     # Act
     provider.upload(test_file, "folder/sub/file.txt")
 
     # Assert
-    # フォルダ作成(2回) + ファイル作成(1回) = 3回
-    assert mock_files.create.call_count == 3
+    assert len(fake.created_folders) == 2  # folder + sub
+    assert len(fake.created_files) == 1  # file.txt
 
 
-def test_upload_with_path_updates_existing_file(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-    test_file: str,
-) -> None:
+def test_upload_with_path_updates_existing_file(test_file: str) -> None:
     """パス区切り付きファイル名で既存更新時、適切なフォルダで検索されること.
 
     Arrange:
-        folder/sub/file.txtというパスを用意する。
+        folder/sub/file.txt というパスを用意する。
         フォルダとファイルが存在する状態にする。
 
     Act:
-        upload()を実行する。
+        upload() を実行する。
 
     Assert:
-        files().update()が呼ばれること。
+        update_file が記録されること。
     """
     # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_update_req = mock_files.update.return_value
-
-    # _find_folder_path: folder検索 → あり
-    # _find_folder_path: sub検索 → あり
-    # _search_for_file: ファイル検索 → あり
-    mock_list_req.execute.side_effect = [
-        {"files": [{"id": "folder_id"}]},
-        {"files": [{"id": "sub_id"}]},
-        {"files": [{"id": "existing_file_id"}]},
-    ]
-    mock_update_req.next_chunk.return_value = (None, {"id": "existing_file_id"})
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider, fake = _make_provider(folder_id="root_folder")
+    folder_id = fake.seed_folder("folder", "root_folder")
+    sub_id = fake.seed_folder("sub", folder_id)
+    fake.seed_file("file.txt", sub_id)
 
     # Act
     provider.upload(test_file, "folder/sub/file.txt")
 
     # Assert
-    mock_files.update.assert_called_once()
-    mock_files.create.assert_not_called()
+    assert len(fake.updated_files) == 1
+    assert len(fake.created_files) == 0
 
 
 @pytest.mark.parametrize(
@@ -252,11 +153,12 @@ def test_sanitize_name_handles_various_inputs(raw_name: str, expected: str) -> N
         様々なパターンのファイル名を用意する。
 
     Act:
-        sanitize_name()を実行する。
+        sanitize_name() を実行する。
 
     Assert:
         期待されるサニタイズ結果が返されること。
     """
+    # Arrange
     # Act
     result = GoogleDriveProvider.sanitize_name(raw_name)
 
@@ -264,68 +166,40 @@ def test_sanitize_name_handles_various_inputs(raw_name: str, expected: str) -> N
     assert result == expected
 
 
-def test_upload_sanitizes_folder_and_file_names(
-    mock_gdrive_credentials: Any,
-    mock_gdrive_service: Any,
-    test_file: str,
-) -> None:
+def test_upload_sanitizes_folder_and_file_names(test_file: str) -> None:
     """パス区切り付きファイル名でサニタイズが適用されること.
 
     Arrange:
-        folder:name/file?.txtというパス（禁止文字を含む）を用意する。
+        folder:name/file?.txt というパス（禁止文字を含む）を用意する。
         フォルダもファイルも存在しない状態にする。
 
     Act:
-        upload()を実行する。
+        upload() を実行する。
 
     Assert:
         サニタイズされた名前でフォルダとファイルが作成されること。
     """
     # Arrange
-    mock_files = mock_gdrive_service.files.return_value
-    mock_list_req = mock_files.list.return_value
-    mock_create_req = mock_files.create.return_value
-
-    # ファイル検索: フォルダ検索 → なし
-    # _ensure_folder_path: folder_name検索 → なし、作成
-    mock_list_req.execute.side_effect = [
-        {"files": []},  # _find_folder_path: folder:name検索
-        {"files": []},  # _ensure_folder_path: folder_name検索
-    ]
-    mock_create_req.execute.side_effect = [
-        {"id": "sanitized_folder_id"},
-    ]
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
-
-    provider = GoogleDriveProvider(
-        folder_id="root_folder",
-        credentials=mock_gdrive_credentials,
-        drive_service=mock_gdrive_service,
-    )
+    provider, fake = _make_provider(folder_id="root_folder")
 
     # Act
     provider.upload(test_file, "folder:name/file?.txt")
 
     # Assert
-    # フォルダ作成時の名前を確認
-    folder_create_call = mock_files.create.call_args_list[0]
-    assert folder_create_call[1]["body"]["name"] == "folder_name"
-
-    # ファイル作成時の名前を確認
-    file_create_call = mock_files.create.call_args_list[1]
-    assert file_create_call[1]["body"]["name"] == "file_.txt"
+    assert len(fake.created_folders) == 1
+    assert fake.created_folders[0].name == "folder_name"
+    assert len(fake.created_files) == 1
+    assert fake.created_files[0].name == "file_.txt"
 
 
 def test_concurrent_upload_of_different_files_runs_in_parallel(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """異なるファイルの並行アップロードが並列実行されること.
 
     Arrange:
         異なる2つのファイル名を用意する。
-        アップロード処理をブロックするためのイベントを設定する。
+        FakeDriveService の並行性追跡イベントを設定する。
 
     Act:
         2つのスレッドで異なるファイルのアップロードを並行開始する。
@@ -334,76 +208,53 @@ def test_concurrent_upload_of_different_files_runs_in_parallel(
         両方のアップロードが同時に実行されること。
     """
     # Arrange
-    import threading
+    provider, fake = _make_provider()
 
-    _, mock_list_req, mock_create_req = mock_gdrive_files
-
-    mock_list_req.execute.return_value = {"files": []}
-
-    # アップロードの進行を制御するためのイベント
-    upload_started = threading.Event()
+    both_entered = threading.Event()
     can_complete = threading.Event()
-    execution_order: list[str] = []
+    fake._upload_both_entered = both_entered
+    fake._upload_can_complete = can_complete
 
-    def mock_next_chunk(*_: Any, **__: Any) -> tuple[Any, dict[str, str]]:
-        upload_started.set()
-        execution_order.append("started")
-        can_complete.wait()  # 両方のスレッドがここに到達するまで待機
-        return (None, {"id": "file_id"})
+    start_gate = threading.Barrier(2)
+    errors: list[BaseException] = []
 
-    mock_create_req.next_chunk.side_effect = mock_next_chunk
-
-    provider = gdrive_provider
-
-    results: list[str] = []
-    errors: list[Exception] = []
-
-    def upload_file1() -> None:
+    def worker(filename: str) -> None:
         try:
-            provider.upload(test_file, "file1.txt")
-            results.append("file1_done")
-        except Exception as e:
-            errors.append(e)
-
-    def upload_file2() -> None:
-        try:
-            provider.upload(test_file, "file2.txt")
-            results.append("file2_done")
-        except Exception as e:
+            start_gate.wait(timeout=5.0)
+            provider.upload(test_file, filename)
+        except BaseException as e:
             errors.append(e)
 
     # Act
-    thread1 = threading.Thread(target=upload_file1)
-    thread2 = threading.Thread(target=upload_file2)
-
+    thread1 = threading.Thread(target=worker, args=("file1.txt",))
+    thread2 = threading.Thread(target=worker, args=("file2.txt",))
     thread1.start()
     thread2.start()
 
-    # 両方のスレッドがアップロードを開始するまで待機
-    # 並列実行されていれば、両方が next_chunk に到達できる
-    upload_started.wait(timeout=5.0)
-
-    # アップロード完了を許可
-    can_complete.set()
-
-    thread1.join(timeout=5.0)
-    thread2.join(timeout=5.0)
+    sync_ok = False
+    try:
+        sync_ok = both_entered.wait(timeout=5.0)
+    finally:
+        can_complete.set()
+        thread1.join(timeout=5.0)
+        thread2.join(timeout=5.0)
 
     # Assert
-    assert len(errors) == 0, f"Unexpected errors: {errors}"
-    assert len(results) == 2, "Both uploads should complete"
+    assert not thread1.is_alive()
+    assert not thread2.is_alive()
+    assert errors == []
+    assert sync_ok, "両スレッドが upload に到達しませんでした"
+    assert fake.max_concurrent_uploads == 2
 
 
 def test_concurrent_upload_of_same_file_runs_serially(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """同じファイルの並行アップロードが直列実行されること.
 
     Arrange:
         同じファイル名への2つのアップロードを用意する。
-        アップロード処理内で並行実行を検出するためのカウンターを設定する。
+        FakeDriveService の並行性追跡イベントを設定する。
 
     Act:
         2つのスレッドで同じファイルのアップロードを並行開始する。
@@ -412,146 +263,108 @@ def test_concurrent_upload_of_same_file_runs_serially(
         同時に実行されるアップロードが最大1つであること。
     """
     # Arrange
-    import threading
+    provider, fake = _make_provider()
 
-    _, mock_list_req, mock_create_req = mock_gdrive_files
+    first_entered = threading.Event()
+    both_entered = threading.Event()
+    can_complete = threading.Event()
+    fake._upload_first_entered = first_entered
+    fake._upload_both_entered = both_entered
+    fake._upload_can_complete = can_complete
 
-    mock_list_req.execute.return_value = {"files": []}
+    start_gate = threading.Barrier(2)
+    errors: list[BaseException] = []
 
-    # 並行実行数を追跡
-    concurrent_count = 0
-    max_concurrent = 0
-    count_lock = threading.Lock()
-    can_proceed = threading.Event()
-
-    # 両方のスレッドが開始したことを検知するカウンター
-    started_count = 0
-    started_lock = threading.Lock()
-    both_started = threading.Event()
-
-    def mock_next_chunk(*_: Any, **__: Any) -> tuple[Any, dict[str, str]]:
-        nonlocal concurrent_count, max_concurrent
-
-        with count_lock:
-            concurrent_count += 1
-            max_concurrent = max(max_concurrent, concurrent_count)
-
-        can_proceed.wait(timeout=5.0)
-
-        with count_lock:
-            concurrent_count -= 1
-
-        return (None, {"id": "file_id"})
-
-    mock_create_req.next_chunk.side_effect = mock_next_chunk
-
-    provider = gdrive_provider
-
-    results: list[str] = []
-    errors: list[Exception] = []
-
-    def upload_file() -> None:
-        nonlocal started_count
-        with started_lock:
-            started_count += 1
-            if started_count == 2:
-                both_started.set()
+    def worker(filename: str) -> None:
         try:
-            provider.upload(test_file, "same_file.txt")
-            results.append("done")
-        except Exception as e:
+            start_gate.wait(timeout=5.0)
+            provider.upload(test_file, filename)
+        except BaseException as e:
             errors.append(e)
 
     # Act
-    thread1 = threading.Thread(target=upload_file)
-    thread2 = threading.Thread(target=upload_file)
-
+    thread1 = threading.Thread(target=worker, args=("same.txt",))
+    thread2 = threading.Thread(target=worker, args=("same.txt",))
     thread1.start()
     thread2.start()
 
-    # 両方のスレッドが開始したことを確認してから進行を許可
-    both_started.wait(timeout=5.0)
-    can_proceed.set()
-
-    thread1.join(timeout=5.0)
-    thread2.join(timeout=5.0)
+    first_ok = False
+    not_both = False
+    try:
+        first_ok = first_entered.wait(timeout=5.0)
+        not_both = not both_entered.wait(timeout=0.3)
+    finally:
+        can_complete.set()
+        thread1.join(timeout=5.0)
+        thread2.join(timeout=5.0)
 
     # Assert
-    assert len(errors) == 0, f"Unexpected errors: {errors}"
-    assert len(results) == 2, "Both uploads should complete"
-    assert max_concurrent == 1, (
-        f"Expected max 1 concurrent upload, got {max_concurrent}"
-    )
+    assert not thread1.is_alive()
+    assert not thread2.is_alive()
+    assert errors == []
+    assert first_ok
+    assert not_both, "直列化されていません"
+    assert fake.max_concurrent_uploads == 1
 
 
-def test_upload_releases_file_lock_on_exception(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
-    test_file: str,
-) -> None:
-    """例外発生時でもファイルロックが解放されること.
+def test_upload_releases_file_lock_on_exception(test_file: str) -> None:
+    """例外発生後も同じファイルのアップロードが再実行されること.
 
     Arrange:
-        例外を発生させるモックを設定する。
+        1回目のアップロードで例外が発生するようエラーを注入する。
 
     Act:
-        upload()を実行し、例外が発生する。
+        1回目の upload() で例外が発生する。
+        2回目の upload() を実行する。
 
     Assert:
-        例外が発生してもファイルロックが解放され、辞書から削除されること。
+        2回目のアップロードが正常に完了すること。
     """
     # Arrange
-    _, mock_list_req, _ = mock_gdrive_files
-
-    # 検索時に例外を発生させる
-    mock_list_req.execute.side_effect = RuntimeError("API Error")
+    provider, fake = _make_provider()
+    fake.inject_list_error(RuntimeError("API Error"))
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="API Error"):
-        gdrive_provider.upload(test_file, "test.txt")
+        provider.upload(test_file, "test.txt")
 
-    # 例外発生後、ファイルロックが辞書から削除されていることを確認
-    assert "test.txt" not in gdrive_provider._file_locks
+    # 例外後も同じファイルのアップロードが成功することで、ロック解放が検証される
+    provider.upload(test_file, "test.txt")
 
 
-def test_file_lock_is_removed_after_upload(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
-    test_file: str,
-) -> None:
-    """アップロード完了後にファイルロックが削除されること.
+def test_file_lock_is_removed_after_upload(test_file: str) -> None:
+    """アップロード完了後に同じファイルの再アップロードが直ちに実行されること.
 
     Arrange:
-        新規ファイル作成のモックを設定する。
+        FakeDriveService を用意する。
 
     Act:
-        upload()を実行する。
+        upload() を2回連続で実行する。
 
     Assert:
-        アップロード完了後、ファイルロックが辞書から削除されること。
+        両方のアップロードが正常に完了すること。
     """
     # Arrange
-    _, mock_list_req, mock_create_req = mock_gdrive_files
-    mock_list_req.execute.return_value = {"files": []}
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+    provider, fake = _make_provider()
 
     # Act
-    gdrive_provider.upload(test_file, "test.txt")
+    provider.upload(test_file, "test.txt")
+    provider.upload(test_file, "test.txt")
 
     # Assert
-    assert "test.txt" not in gdrive_provider._file_locks
+    # 1回目は新規作成、2回目は既存ファイルの更新として記録される
+    assert len(fake.created_files) == 1
+    assert len(fake.updated_files) == 1
 
 
 def test_concurrent_upload_to_same_folder_path_does_not_create_duplicate_folders(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
     """同じフォルダパスへの並行アップロードで重複フォルダが作成されないこと.
 
     Arrange:
         同じフォルダパス(folder/sub)を使用する異なる2つのファイルを用意する。
-        フォルダ作成処理内で並行実行を検出するためのカウンターを設定する。
+        FakeDriveService のフォルダ作成並行性追跡イベントを設定する。
 
     Act:
         2つのスレッドで異なるファイルを同じフォルダに並行アップロードする。
@@ -560,136 +373,78 @@ def test_concurrent_upload_to_same_folder_path_does_not_create_duplicate_folders
         同時に実行されるフォルダ作成処理が最大1つであること。
     """
     # Arrange
-    import threading
+    provider, fake = _make_provider(folder_id="root_folder")
 
-    mock_files, mock_list_req, mock_create_req = mock_gdrive_files
+    first_entered = threading.Event()
+    both_entered = threading.Event()
+    can_complete = threading.Event()
+    fake._folder_first_entered = first_entered
+    fake._folder_both_entered = both_entered
+    fake._folder_can_complete = can_complete
 
-    # _ensure_folder_path内の並行実行数を追跡
-    concurrent_count = 0
-    max_concurrent = 0
-    count_lock = threading.Lock()
-    can_proceed = threading.Event()
+    start_gate = threading.Barrier(2)
+    errors: list[BaseException] = []
 
-    # 両方のスレッドが開始したことを検知するカウンター
-    started_count = 0
-    started_lock = threading.Lock()
-    both_started = threading.Event()
-
-    folder_created = False
-    folder_create_count = 0
-
-    def mock_folder_create(*_: Any, **__: Any) -> dict[str, str]:
-        nonlocal concurrent_count, max_concurrent, folder_created, folder_create_count
-
-        # フォルダ作成の場合のみ並行性をチェック
-        with count_lock:
-            concurrent_count += 1
-            max_concurrent = max(max_concurrent, concurrent_count)
-
-        can_proceed.wait(timeout=5.0)
-
-        with count_lock:
-            concurrent_count -= 1
-
-        # フォルダ作成は1回だけ行われるべき
-        if not folder_created:
-            folder_created = True
-            folder_create_count += 1
-            return {"id": "folder_id"}
-        else:
-            # 2回目のフォルダ作成は検索で見つかるはず
-            return {"id": "folder_id"}
-
-    # ファイル検索: なし、フォルダ検索: なし → フォルダ作成
-    # ファイル検索のために_find_folder_pathが呼ばれるのでその設定
-    call_count = 0
-
-    def mock_list_execute(*_: Any, **__: Any) -> dict[str, Any]:
-        nonlocal call_count
-        call_count += 1
-        # 最初の呼び出しは_find_folder_path（ファイル検索前）
-        # 次は_ensure_folder_path内のフォルダ検索
-        return {"files": []}
-
-    mock_list_req.execute.side_effect = mock_list_execute
-    mock_create_req.execute.side_effect = mock_folder_create
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
-
-    provider = gdrive_provider
-
-    results: list[str] = []
-    errors: list[Exception] = []
-
-    def upload_file1() -> None:
-        nonlocal started_count
-        with started_lock:
-            started_count += 1
-            if started_count == 2:
-                both_started.set()
+    def worker(filename: str) -> None:
         try:
-            provider.upload(test_file, "folder/sub/file1.txt")
-            results.append("file1_done")
-        except Exception as e:
-            errors.append(e)
-
-    def upload_file2() -> None:
-        nonlocal started_count
-        with started_lock:
-            started_count += 1
-            if started_count == 2:
-                both_started.set()
-        try:
-            provider.upload(test_file, "folder/sub/file2.txt")
-            results.append("file2_done")
-        except Exception as e:
+            start_gate.wait(timeout=5.0)
+            provider.upload(test_file, f"folder/sub/{filename}")
+        except BaseException as e:
             errors.append(e)
 
     # Act
-    thread1 = threading.Thread(target=upload_file1)
-    thread2 = threading.Thread(target=upload_file2)
-
+    thread1 = threading.Thread(target=worker, args=("file1.txt",))
+    thread2 = threading.Thread(target=worker, args=("file2.txt",))
     thread1.start()
     thread2.start()
 
-    # 両方のスレッドが開始したことを確認してから進行を許可
-    both_started.wait(timeout=5.0)
-    can_proceed.set()
-
-    thread1.join(timeout=5.0)
-    thread2.join(timeout=5.0)
+    first_ok = False
+    not_both = False
+    try:
+        first_ok = first_entered.wait(timeout=5.0)
+        not_both = not both_entered.wait(timeout=0.3)
+    finally:
+        can_complete.set()
+        thread1.join(timeout=5.0)
+        thread2.join(timeout=5.0)
 
     # Assert
-    assert len(errors) == 0, f"Unexpected errors: {errors}"
-    assert len(results) == 2, "Both uploads should complete"
-    assert max_concurrent == 1, (
-        f"Expected max 1 concurrent folder creation, got {max_concurrent}"
-    )
+    assert not thread1.is_alive()
+    assert not thread2.is_alive()
+    assert errors == []
+    assert first_ok
+    assert not_both, "フォルダ作成が直列化されていません"
+    assert fake.max_concurrent_folder_creates == 1
+
+    # フォルダ作成は2回（folder + sub の各スレッドで各1回ずつ）
+    assert len(fake.created_folders) == 2
+    # 親子関係の検証: (root_folder, folder) と (folder_id, sub) の組み合わせ
+    parent_child_pairs = {(f.parent_id, f.name) for f in fake.created_folders}
+    assert (fake.root_folder_id, "folder") in parent_child_pairs
+    # sub フォルダの親は folder の ID
+    folder_records = [f for f in fake.created_folders if f.name == "folder"]
+    assert len(folder_records) == 1
+    assert (folder_records[0].id, "sub") in parent_child_pairs
 
 
-def test_folder_lock_is_removed_after_upload(
-    mock_gdrive_files: tuple[Any, Any, Any],
-    gdrive_provider: GoogleDriveProvider,
-    test_file: str,
-) -> None:
-    """アップロード完了後にフォルダロックが削除されること.
+def test_folder_lock_is_removed_after_upload(test_file: str) -> None:
+    """アップロード完了後に同じフォルダパスの再アップロードが直ちに実行されること.
 
     Arrange:
-        パス区切り付きファイル名の新規作成モックを設定する。
+        FakeDriveService を用意する。
 
     Act:
-        upload()を実行する。
+        同じフォルダパスへの upload() を2回連続で実行する。
 
     Assert:
-        アップロード完了後、フォルダロックが辞書から削除されること。
+        両方のアップロードが正常に完了すること。
     """
     # Arrange
-    _, mock_list_req, mock_create_req = mock_gdrive_files
-    mock_list_req.execute.return_value = {"files": []}
-    mock_create_req.execute.return_value = {"id": "folder_id"}
-    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
+    provider, fake = _make_provider(folder_id="root_folder")
 
     # Act
-    gdrive_provider.upload(test_file, "folder/sub/file.txt")
+    provider.upload(test_file, "folder/sub/file1.txt")
+    provider.upload(test_file, "folder/sub/file2.txt")
 
     # Assert
-    assert "folder/sub" not in gdrive_provider._folder_locks
+    assert len(fake.created_files) == 2

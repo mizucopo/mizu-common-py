@@ -15,7 +15,7 @@ from mizu_common.youtube_client import YouTubeClient
 
 @pytest.fixture
 def mock_oauth_client() -> GoogleOAuthClient:
-    """モックされたOAuth認証クライアントを返す."""
+    """モックされたOAuth認証クライアントが返されること."""
     client = Mock(spec=GoogleOAuthClient)
     client.get_headers.return_value = {"Authorization": "Bearer test_token"}
     return client
@@ -24,7 +24,7 @@ def mock_oauth_client() -> GoogleOAuthClient:
 def test_get_video_details_returns_video_info(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
-    """get_video_detailsが動画情報を返すこと.
+    """get_video_detailsで動画情報が返されること.
 
     Arrange:
         APIレスポンスをモックする。
@@ -67,7 +67,7 @@ def test_get_video_details_returns_video_info(
 def test_iter_channel_videos_yields_videos(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
-    """iter_channel_videosが全動画を正しくyieldすること.
+    """iter_channel_videosで全動画が正しくyieldされること.
 
     Arrange:
         channels.list、playlistItems.list、videos.list APIのレスポンスをモックする。
@@ -206,7 +206,7 @@ def test_iter_channel_videos_handles_pagination(
 def test_iter_channel_videos_raises_http_error(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
-    """HTTPエラー時にiter_channel_videosがYouTubeHttpErrorをスローすること.
+    """HTTPエラー時にiter_channel_videosでYouTubeHttpErrorがスローされること.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -234,7 +234,7 @@ def test_iter_channel_videos_raises_http_error(
 def test_iter_channel_videos_raises_network_error(
     mocker: Any, mock_oauth_client: GoogleOAuthClient
 ) -> None:
-    """ネットワークエラー時にiter_channel_videosがYouTubeNetworkErrorをスローすること.
+    """ネットワークエラー時にiter_channel_videosでYouTubeNetworkErrorがスローされること.
 
     Arrange:
         ネットワークエラーをモックする。

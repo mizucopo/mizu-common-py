@@ -1,4 +1,4 @@
-"""BackupManagerのテスト。"""
+"""BackupManagerのテスト."""
 
 import tempfile
 import zipfile
