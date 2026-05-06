@@ -25,6 +25,7 @@ class AssetService:
         Raises:
             ValueError: assetsが空の場合、
                 またはrateが正でない場合、
+                またはrateの合計が1でない場合、
                 または資産合計額が0以下の場合
         """
         if not assets:
@@ -32,6 +33,9 @@ class AssetService:
 
         if any(asset.rate <= 0 for asset in assets):
             raise ValueError("all rates must be positive")
+
+        if sum(asset.rate for asset in assets) != Decimal("1"):
+            raise ValueError("rates must sum to 1")
 
         sum_amount = sum(asset.amount for asset in assets)
         if sum_amount <= 0:
@@ -63,6 +67,7 @@ class AssetService:
             ValueError: adjustment_amountが整数でない場合、
                 または入出金時にcalculated_assetsが空の場合、
                 またはrateが正でない場合、
+                またはrateの合計が1でない場合、
                 またはfinal_totalが0以下の場合、
                 または配分対象アセットが存在しない場合
         """
@@ -81,6 +86,9 @@ class AssetService:
 
         if any(calc.asset.rate <= 0 for calc in calculated_assets):
             raise ValueError("all rates must be positive")
+
+        if sum(calc.asset.rate for calc in calculated_assets) != Decimal("1"):
+            raise ValueError("rates must sum to 1")
 
         if adjustment_amount != adjustment_amount.to_integral_value():
             raise ValueError("adjustment_amount must be an integer")

@@ -951,54 +951,6 @@ def test_adjustment_result_operation_type_none() -> None:
     assert result.operation_type == AssetAdjustmentType.NONE
 
 
-def test_adjust_assets_no_underweight_assets_raises(
-    service: AssetService,
-) -> None:
-    """入金時に不足アセットが存在しない場合はValueErrorが送出されること
-
-    Arrange
-    - 全アセットの水位がfinal_total以上のデータを準備
-    Act & Assert
-    - ValueErrorが送出されること
-    """
-    # Arrange
-    # level=1000000, total=20000, deposit=1 → final_total=20001
-    # 1000000 >= 20001 → 不足アセットなし
-    assets = (
-        Asset(name="A", amount=Decimal("10000"), rate=Decimal("0.01")),
-        Asset(name="B", amount=Decimal("10000"), rate=Decimal("0.01")),
-    )
-    calculated_assets = _create_calculated_assets(assets)
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="no underweight assets for deposit"):
-        service.adjust_assets(calculated_assets, Decimal("1"))
-
-
-def test_adjust_assets_no_overweight_assets_raises(
-    service: AssetService,
-) -> None:
-    """出金時に超過アセットが存在しない場合はValueErrorが送出されること
-
-    Arrange
-    - 全アセットの水位がfinal_total以下のデータを準備
-    Act & Assert
-    - ValueErrorが送出されること
-    """
-    # Arrange
-    # level=50, total=200, withdraw=-1 → final_total=199
-    # 50 <= 199 → 超過アセットなし
-    assets = (
-        Asset(name="A", amount=Decimal("100"), rate=Decimal("2.0")),
-        Asset(name="B", amount=Decimal("100"), rate=Decimal("2.0")),
-    )
-    calculated_assets = _create_calculated_assets(assets)
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="no overweight assets for withdrawal"):
-        service.adjust_assets(calculated_assets, Decimal("-1"))
-
-
 def test_calculate_current_rates_zero_rate_raises(
     service: AssetService,
 ) -> None:
@@ -1079,4 +1031,90 @@ def test_adjust_assets_zero_rate_raises(
 
     # Act & Assert
     with pytest.raises(ValueError, match="all rates must be positive"):
+        service.adjust_assets(calculated_assets, Decimal("1000"))
+
+
+def test_calculate_current_rates_rates_sum_below_one_raises(
+    service: AssetService,
+) -> None:
+    """rate合計が1.0未満の場合はValueErrorが送出されること
+
+    Arrange
+    - rate合計が0.8の資産を準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.50")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0.30")),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="rates must sum to 1"):
+        service.calculate_current_rates(assets)
+
+
+def test_calculate_current_rates_rates_sum_above_one_raises(
+    service: AssetService,
+) -> None:
+    """rate合計が1.0超過の場合はValueErrorが送出されること
+
+    Arrange
+    - rate合計が1.2の資産を準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.70")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0.50")),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="rates must sum to 1"):
+        service.calculate_current_rates(assets)
+
+
+def test_adjust_assets_rates_sum_below_one_raises(
+    service: AssetService,
+) -> None:
+    """rate合計が0.8のcalculated_assetsでValueErrorが送出されること
+
+    Arrange
+    - rate合計0.8のAssetCalculationを準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.50")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0.30")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="rates must sum to 1"):
+        service.adjust_assets(calculated_assets, Decimal("1000"))
+
+
+def test_adjust_assets_rates_sum_above_one_raises(
+    service: AssetService,
+) -> None:
+    """rate合計が1.2のcalculated_assetsでValueErrorが送出されること
+
+    Arrange
+    - rate合計1.2のAssetCalculationを準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.70")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0.50")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="rates must sum to 1"):
         service.adjust_assets(calculated_assets, Decimal("1000"))
