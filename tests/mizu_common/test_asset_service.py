@@ -997,3 +997,86 @@ def test_adjust_assets_no_overweight_assets_raises(
     # Act & Assert
     with pytest.raises(ValueError, match="no overweight assets for withdrawal"):
         service.adjust_assets(calculated_assets, Decimal("-1"))
+
+
+def test_calculate_current_rates_zero_rate_raises(
+    service: AssetService,
+) -> None:
+    """rateがゼロの資産がある場合はValueErrorが送出されること
+
+    Arrange
+    - rateにゼロを含む資産を準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0")),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="all rates must be positive"):
+        service.calculate_current_rates(assets)
+
+
+def test_calculate_current_rates_negative_rate_raises(
+    service: AssetService,
+) -> None:
+    """rateが負の資産がある場合はValueErrorが送出されること
+
+    Arrange
+    - rateに負値を含む資産を準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("-0.10")),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="all rates must be positive"):
+        service.calculate_current_rates(assets)
+
+
+def test_adjust_assets_fractional_amount_raises(
+    service: AssetService,
+    sample_assets: tuple[Asset, ...],
+) -> None:
+    """adjustment_amountが小数の場合はValueErrorが送出されること
+
+    Arrange
+    - 小数のadjustment_amountを準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    calculated_assets = _create_calculated_assets(sample_assets)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="adjustment_amount must be an integer"):
+        service.adjust_assets(calculated_assets, Decimal("1000.5"))
+
+
+def test_adjust_assets_zero_rate_raises(
+    service: AssetService,
+) -> None:
+    """rateがゼロのAssetCalculationを直接渡した場合はValueErrorが送出されること
+
+    Arrange
+    - rate=0のAssetCalculationを準備
+    Act & Assert
+    - ValueErrorが送出されること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("10000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("10000"), rate=Decimal("0")),
+    )
+    calculated_assets = _create_calculated_assets(assets)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="all rates must be positive"):
+        service.adjust_assets(calculated_assets, Decimal("1000"))

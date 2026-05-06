@@ -248,9 +248,12 @@ for asset in result.assets:
 
 - `calculate_current_rates(assets: tuple[Asset, ...]) -> tuple[AssetCalculation, ...]` - 各資産の現在配分比率を計算
   - `assets`が空の場合 `ValueError` を送出
+  - `rate`が正でない場合 `ValueError` を送出
   - 資産合計額が0以下の場合 `ValueError` を送出
 - `adjust_assets(calculated_assets: tuple[AssetCalculation, ...], adjustment_amount: Decimal) -> AssetAdjustmentResult` - 入出金に応じて資産を調整
-  - `adjustment_amount` が正: 入金、負: 出金、0: 変更なし
+  - `adjustment_amount` が正: 入金、負: 出金、0: 変更なし（**整数のみ対応**）
+  - `adjustment_amount`が整数でない場合 `ValueError` を送出
+  - `rate`が正でない場合 `ValueError` を送出
   - `calculated_assets`が空で入出金がある場合 `ValueError` を送出
   - 最終合計が0以下になる場合 `ValueError` を送出
   - 配分対象アセットが存在しない場合 `ValueError` を送出

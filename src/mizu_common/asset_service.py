@@ -24,10 +24,14 @@ class AssetService:
 
         Raises:
             ValueError: assetsが空の場合、
+                またはrateが正でない場合、
                 または資産合計額が0以下の場合
         """
         if not assets:
             raise ValueError("assets must not be empty")
+
+        if any(asset.rate <= 0 for asset in assets):
+            raise ValueError("all rates must be positive")
 
         sum_amount = sum(asset.amount for asset in assets)
         if sum_amount <= 0:
@@ -56,7 +60,9 @@ class AssetService:
             調整結果
 
         Raises:
-            ValueError: 入出金時にcalculated_assetsが空の場合、
+            ValueError: adjustment_amountが整数でない場合、
+                または入出金時にcalculated_assetsが空の場合、
+                またはrateが正でない場合、
                 またはfinal_totalが0以下の場合、
                 または配分対象アセットが存在しない場合
         """
@@ -72,6 +78,12 @@ class AssetService:
             raise ValueError(
                 "calculated_assets is empty. Run calculate_current_rates first."
             )
+
+        if any(calc.asset.rate <= 0 for calc in calculated_assets):
+            raise ValueError("all rates must be positive")
+
+        if adjustment_amount != adjustment_amount.to_integral_value():
+            raise ValueError("adjustment_amount must be an integer")
 
         return self._allocate(calculated_assets, adjustment_amount)
 
