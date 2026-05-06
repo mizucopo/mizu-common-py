@@ -24,11 +24,15 @@ def test_get_access_token_caches_token(mocker: Any) -> None:
         2回目以降はAPIが呼ばれないこと。
     """
     # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"access_token": "cached_token"}
-    mock_post = mocker.patch(
-        "mizu_common.google_oauth_client.requests.post", return_value=mock_response
+    first_response = Mock()
+    first_response.status_code = 200
+    first_response.json.return_value = {"access_token": "cached_token"}
+    mocker.patch(
+        "mizu_common.google_oauth_client.requests.post",
+        side_effect=[
+            first_response,
+            RuntimeError("API should not be called twice"),
+        ],
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY, GoogleScope.DRIVE_FILE]
@@ -41,7 +45,6 @@ def test_get_access_token_caches_token(mocker: Any) -> None:
     # Assert
     assert token1 == "cached_token"
     assert token2 == "cached_token"
-    mock_post.assert_called_once()
 
 
 def test_get_access_token_raises_error_on_failure(mocker: Any) -> None:
@@ -88,11 +91,15 @@ def test_get_access_token_force_refresh(mocker: Any) -> None:
         トークンが強制的に更新されること。
     """
     # Arrange
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"access_token": "new_token"}
-    mock_post = mocker.patch(
-        "mizu_common.google_oauth_client.requests.post", return_value=mock_response
+    first_response = Mock()
+    first_response.status_code = 200
+    first_response.json.return_value = {"access_token": "old_token"}
+    second_response = Mock()
+    second_response.status_code = 200
+    second_response.json.return_value = {"access_token": "new_token"}
+    mocker.patch(
+        "mizu_common.google_oauth_client.requests.post",
+        side_effect=[first_response, second_response],
     )
 
     scopes = [GoogleScope.YOUTUBE_READONLY]
@@ -105,7 +112,6 @@ def test_get_access_token_force_refresh(mocker: Any) -> None:
 
     # Assert
     assert token == "new_token"
-    assert mock_post.call_count == 2
 
 
 @pytest.mark.parametrize(

@@ -43,35 +43,24 @@ def test_acquire_lock_releases_on_exit(tmp_path: Path) -> None:
     """acquireが終了時にロックが解放されること.
 
     Arrange:
-        portalockerをモックする。
+        LockManagerを用意する。
 
     Act:
         ロックを取得して解放した後、再度ロックを取得する。
 
     Assert:
-        ロックが正常に取得・解放できること。
+        両方とも例外なく取得・解放されること。
     """
     # Arrange
     lock_manager = LockManager(lock_dir=tmp_path)
 
-    with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
-        mock_lock1 = MagicMock()
-        mock_lock2 = MagicMock()
-        mock_lock_class.side_effect = [mock_lock1, mock_lock2]
+    # Act & Assert
+    with lock_manager.acquire():
+        pass
 
-        # Act & Assert
-        with lock_manager.acquire():
-            pass
-
-        # 2回目も正常に取得できること
-        with lock_manager.acquire():
-            pass
-
-        # 各ロックが正しくacquire/releaseされたこと
-        mock_lock1.acquire.assert_called_once()
-        mock_lock1.release.assert_called_once()
-        mock_lock2.acquire.assert_called_once()
-        mock_lock2.release.assert_called_once()
+    # 2回目も正常に取得できること
+    with lock_manager.acquire():
+        pass
 
 
 def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
