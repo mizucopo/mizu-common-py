@@ -20,14 +20,22 @@ Python用共通ライブラリ。
 
 - **DiscordClient**: Discord Webhookを使用したメッセージ・Embed送信
 
+### 資産管理
+
+- **AssetService**: ウォーターフィリングアルゴリズムによる資産配分調整
+
 ### データモデル
 
 - **YouTubeVideoInfo**: YouTube動画情報を表すデータクラス
 - **DiscordEmbed**: Discord Embedメッセージを構築するデータクラス
+- **Asset**: 資産データを表すデータクラス
+- **AssetCalculation**: 資産の計算結果を表すデータクラス
+- **AssetAdjustmentResult**: 資産調整結果を表すデータクラス
 
 ### 定数
 
 - **GoogleScope**: Google API スコープのEnum
+- **AssetAdjustmentType**: 資産調整操作の種別Enum
 
 ## 要件
 
