@@ -219,6 +219,102 @@ class YouTubeVideoInfo:
 
 ---
 
+### AssetService
+
+ウォーターフィリングアルゴリズムによる資産配分調整を行います。
+
+```python
+from decimal import Decimal
+from mizu_common import Asset, AssetService
+
+service = AssetService()
+
+# 資産を定義（name, amount, rate）
+assets = (
+    Asset(name="国内株", amount=Decimal("500000"), rate=Decimal("0.5")),
+    Asset(name="海外株", amount=Decimal("300000"), rate=Decimal("0.3")),
+    Asset(name="債券", amount=Decimal("200000"), rate=Decimal("0.2")),
+)
+
+# 現在の配分比率を計算
+calculated = service.calculate_current_rates(assets)
+
+# 入金して配分を調整
+result = service.adjust_assets(calculated, adjustment_amount=Decimal("100000"))
+print(result.operation_type)  # AssetAdjustmentType.DEPOSIT
+for asset in result.assets:
+    print(f"{asset.name}: {asset.amount}")
+```
+
+- `calculate_current_rates(assets: tuple[Asset, ...]) -> tuple[AssetCalculation, ...]` - 各資産の現在配分比率を計算
+  - `assets`が空の場合 `ValueError` を送出
+  - `rate`が正でない場合 `ValueError` を送出
+  - `rate`の合計が1でない場合 `ValueError` を送出
+  - 資産合計額が0以下の場合 `ValueError` を送出
+- `adjust_assets(calculated_assets: tuple[AssetCalculation, ...], adjustment_amount: Decimal) -> AssetAdjustmentResult` - 入出金に応じて資産を調整
+  - `adjustment_amount` が正: 入金、負: 出金、0: 変更なし（**整数のみ対応**）
+  - `adjustment_amount`が整数でない場合 `ValueError` を送出
+  - `rate`が正でない場合 `ValueError` を送出
+  - `rate`の合計が1でない場合 `ValueError` を送出
+  - `calculated_assets`が空で入出金がある場合 `ValueError` を送出
+  - 最終合計が0以下になる場合 `ValueError` を送出
+  - 配分対象アセットが存在しない場合 `ValueError` を送出
+
+**使用パターン**: `calculate_current_rates()` → `adjust_assets()` の2ステップで使用。
+
+---
+
+### Asset (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class Asset:
+    name: str        # 資産名
+    amount: Decimal  # 現在の金額
+    rate: Decimal    # 目標配分割合（合計1.0になるように設定）
+```
+
+---
+
+### AssetCalculation (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class AssetCalculation:
+    asset: Asset              # 元の資産データ
+    current_rate: Decimal     # 現在の配分比率（calculate_current_ratesで計算）
+    flow_amount: Decimal      # 入出金額（正: 入金、負: 出金、0: 変更なし）
+```
+
+---
+
+### AssetAdjustmentResult (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class AssetAdjustmentResult:
+    assets: tuple[Asset, ...]                  # 更新後の資産
+    calculated_assets: tuple[AssetCalculation, ...]  # 更新後の計算結果
+    adjustment_amount: Decimal                 # 入出金額（正: 入金、負: 出金）
+
+    @property
+    def operation_type(self) -> AssetAdjustmentType  # DEPOSIT / WITHDRAWAL / NONE
+```
+
+---
+
+### AssetAdjustmentType (str, Enum)
+
+```python
+from mizu_common import AssetAdjustmentType
+
+AssetAdjustmentType.DEPOSIT     # "deposit" - 入金
+AssetAdjustmentType.WITHDRAWAL  # "withdrawal" - 出金
+AssetAdjustmentType.NONE        # "none" - 変更なし
+```
+
+---
+
 ### GoogleScope (str, Enum)
 
 ```python
@@ -292,7 +388,32 @@ embed = DiscordEmbed(
 
 ## よく使うレシピ
 
-### 1. バックアップとGoogle Driveアップロード
+### 1. 資産配分の調整
+
+```python
+from decimal import Decimal
+from mizu_common import Asset, AssetService
+
+service = AssetService()
+assets = (
+    Asset(name="国内株", amount=Decimal("500000"), rate=Decimal("0.5")),
+    Asset(name="海外株", amount=Decimal("300000"), rate=Decimal("0.3")),
+    Asset(name="債券", amount=Decimal("200000"), rate=Decimal("0.2")),
+)
+
+# 入金
+calculated = service.calculate_current_rates(assets)
+result = service.adjust_assets(calculated, adjustment_amount=Decimal("100000"))
+print(f"操作: {result.operation_type.value}")
+for calc in result.calculated_assets:
+    print(f"  {calc.asset.name}: {calc.asset.amount} ({calc.flow_amount:+})")
+
+# 出金
+calculated = service.calculate_current_rates(result.assets)
+result = service.adjust_assets(calculated, adjustment_amount=Decimal("-50000"))
+```
+
+### 2. バックアップとGoogle Driveアップロード
 
 ```python
 import logging
@@ -326,7 +447,7 @@ drive.upload(backup_path, f"backups/{year}/backup_{timestamp}.zip")
 logger.info("バックアップをアップロードしました")
 ```
 
-### 2. 二重起動防止付きバッチ処理
+### 3. 二重起動防止付きバッチ処理
 
 ```python
 import sys
@@ -344,7 +465,7 @@ except AlreadyRunningError:
     sys.exit("他のインスタンスが既に実行中です")
 ```
 
-### 3. YouTubeチャンネル動画の取得
+### 4. YouTubeチャンネル動画の取得
 
 ```python
 from mizu_common import YouTubeClient, GoogleOAuthClient, GoogleScope
@@ -363,7 +484,7 @@ for video in client.iter_channel_videos("CHANNEL_ID"):
     print(f"  長さ: {video.duration}")
 ```
 
-### 4. OAuth Device Flowでリフレッシュトークンを取得
+### 5. OAuth Device Flowでリフレッシュトークンを取得
 
 ```python
 from mizu_common import GoogleOAuthClient, GoogleScope
@@ -381,7 +502,7 @@ else:
     print("認証に失敗しました")
 ```
 
-### 5. カスタムログ設定
+### 6. カスタムログ設定
 
 ```python
 import logging
@@ -400,7 +521,7 @@ logger.debug("デバッグメッセージ")
 logger.info("情報メッセージ")
 ```
 
-### 6. Discord通知
+### 7. Discord通知
 
 ```python
 from mizu_common import DiscordClient, DiscordEmbed
@@ -422,6 +543,24 @@ client.send_embed(embed)
 ---
 
 ## アンチパターン / 落とし穴
+
+### AssetService: rateの合計は1.0にすること
+
+```python
+# 誤り: rateの合計が1.0でないと正しい配分にならない
+assets = (
+    Asset(name="A", amount=Decimal("100"), rate=Decimal("0.5")),
+    Asset(name="B", amount=Decimal("100"), rate=Decimal("0.3")),
+    # 合計0.8 — 0.2が未割当
+)
+
+# 正しい: rateの合計を1.0にする
+assets = (
+    Asset(name="A", amount=Decimal("100"), rate=Decimal("0.5")),
+    Asset(name="B", amount=Decimal("100"), rate=Decimal("0.3")),
+    Asset(name="C", amount=Decimal("100"), rate=Decimal("0.2")),
+)
+```
 
 ### LockManager: コンテキストマネージャ外でのrelease()使用
 
