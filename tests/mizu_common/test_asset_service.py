@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from mizu_common.asset_service import AssetService
-from mizu_common.constants.operation_type import OperationType
+from mizu_common.constants.asset_adjustment_type import AssetAdjustmentType
 from mizu_common.models.asset import Asset
 from mizu_common.models.asset_adjustment_result import AssetAdjustmentResult
 from mizu_common.models.asset_calculation import AssetCalculation
@@ -880,7 +880,24 @@ def test_public_api_includes_asset_classes() -> None:
     assert "Asset" in mizu_common.__all__
     assert "AssetCalculation" in mizu_common.__all__
     assert "AssetAdjustmentResult" in mizu_common.__all__
-    assert "OperationType" in mizu_common.__all__
+    assert "AssetAdjustmentType" in mizu_common.__all__
+
+
+def test_public_api_asset_adjustment_type_importable() -> None:
+    """AssetAdjustmentTypeがトップレベルimport可能でEnum値が正しいこと
+
+    Arrange
+    - mizu_commonパッケージからAssetAdjustmentTypeをimport
+    Act & Assert
+    - DEPOSITの値が"deposit"であること
+    """
+    # Arrange
+    from mizu_common import AssetAdjustmentType as T
+
+    # Act & Assert
+    assert T.DEPOSIT.value == "deposit"
+    assert T.WITHDRAWAL.value == "withdrawal"
+    assert T.NONE.value == "none"
 
 
 def test_adjustment_result_operation_type_deposit() -> None:
@@ -897,7 +914,7 @@ def test_adjustment_result_operation_type_deposit() -> None:
     )
 
     # Assert
-    assert result.operation_type == OperationType.DEPOSIT
+    assert result.operation_type == AssetAdjustmentType.DEPOSIT
 
 
 def test_adjustment_result_operation_type_withdrawal() -> None:
@@ -914,7 +931,7 @@ def test_adjustment_result_operation_type_withdrawal() -> None:
     )
 
     # Assert
-    assert result.operation_type == OperationType.WITHDRAWAL
+    assert result.operation_type == AssetAdjustmentType.WITHDRAWAL
 
 
 def test_adjustment_result_operation_type_none() -> None:
@@ -931,7 +948,7 @@ def test_adjustment_result_operation_type_none() -> None:
     )
 
     # Assert
-    assert result.operation_type == OperationType.NONE
+    assert result.operation_type == AssetAdjustmentType.NONE
 
 
 def test_adjust_assets_no_underweight_assets_raises(
@@ -978,7 +995,5 @@ def test_adjust_assets_no_overweight_assets_raises(
     calculated_assets = _create_calculated_assets(assets)
 
     # Act & Assert
-    with pytest.raises(
-        ValueError, match="no overweight assets for withdrawal"
-    ):
+    with pytest.raises(ValueError, match="no overweight assets for withdrawal"):
         service.adjust_assets(calculated_assets, Decimal("-1"))

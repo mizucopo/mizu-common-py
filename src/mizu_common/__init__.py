@@ -2,8 +2,8 @@
 
 from mizu_common.asset_service import AssetService
 from mizu_common.backup_manager import BackupManager
+from mizu_common.constants.asset_adjustment_type import AssetAdjustmentType
 from mizu_common.constants.google_scope import GoogleScope
-from mizu_common.constants.operation_type import OperationType
 from mizu_common.discord_client import DiscordClient
 from mizu_common.exceptions.already_running_error import AlreadyRunningError
 from mizu_common.exceptions.discord_webhook_error import DiscordWebhookError
@@ -39,7 +39,7 @@ __all__ = [
     "AssetAdjustmentResult",
     # 定数
     "GoogleScope",
-    "OperationType",
+    "AssetAdjustmentType",
     # 資産調整
     "AssetService",
     # 例外

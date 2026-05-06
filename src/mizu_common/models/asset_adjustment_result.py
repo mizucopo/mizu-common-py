@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from mizu_common.constants.operation_type import OperationType
+from mizu_common.constants.asset_adjustment_type import AssetAdjustmentType
 from mizu_common.models.asset import Asset
 from mizu_common.models.asset_calculation import AssetCalculation
 
@@ -23,10 +23,10 @@ class AssetAdjustmentResult:
     adjustment_amount: Decimal
 
     @property
-    def operation_type(self) -> OperationType:
+    def operation_type(self) -> AssetAdjustmentType:
         """操作タイプを返す"""
         if self.adjustment_amount > 0:
-            return OperationType.DEPOSIT
+            return AssetAdjustmentType.DEPOSIT
         if self.adjustment_amount < 0:
-            return OperationType.WITHDRAWAL
-        return OperationType.NONE
+            return AssetAdjustmentType.WITHDRAWAL
+        return AssetAdjustmentType.NONE

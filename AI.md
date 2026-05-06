@@ -241,7 +241,7 @@ calculated = service.calculate_current_rates(assets)
 
 # 入金して配分を調整
 result = service.adjust_assets(calculated, adjustment_amount=Decimal("100000"))
-print(result.operation_type)  # OperationType.DEPOSIT
+print(result.operation_type)  # AssetAdjustmentType.DEPOSIT
 for asset in result.assets:
     print(f"{asset.name}: {asset.amount}")
 ```
@@ -293,19 +293,19 @@ class AssetAdjustmentResult:
     adjustment_amount: Decimal                 # 入出金額（正: 入金、負: 出金）
 
     @property
-    def operation_type(self) -> OperationType  # DEPOSIT / WITHDRAWAL / NONE
+    def operation_type(self) -> AssetAdjustmentType  # DEPOSIT / WITHDRAWAL / NONE
 ```
 
 ---
 
-### OperationType (str, Enum)
+### AssetAdjustmentType (str, Enum)
 
 ```python
-from mizu_common import OperationType
+from mizu_common import AssetAdjustmentType
 
-OperationType.DEPOSIT     # "deposit" - 入金
-OperationType.WITHDRAWAL  # "withdrawal" - 出金
-OperationType.NONE        # "none" - 変更なし
+AssetAdjustmentType.DEPOSIT     # "deposit" - 入金
+AssetAdjustmentType.WITHDRAWAL  # "withdrawal" - 出金
+AssetAdjustmentType.NONE        # "none" - 変更なし
 ```
 
 ---
