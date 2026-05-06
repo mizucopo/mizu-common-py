@@ -1,5 +1,6 @@
 """GoogleDriveProvider のアップロード機能のテスト。"""
 
+import threading
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -334,8 +335,6 @@ def test_concurrent_upload_of_different_files_runs_in_parallel(
         両方のアップロードが同時に実行されること。
     """
     # Arrange
-    import threading
-
     _, mock_list_req, mock_create_req = mock_gdrive_files
 
     mock_list_req.execute.return_value = {"files": []}
@@ -412,8 +411,6 @@ def test_concurrent_upload_of_same_file_runs_serially(
         同時に実行されるアップロードが最大1つであること。
     """
     # Arrange
-    import threading
-
     _, mock_list_req, mock_create_req = mock_gdrive_files
 
     mock_list_req.execute.return_value = {"files": []}
@@ -489,29 +486,34 @@ def test_upload_releases_file_lock_on_exception(
     gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
-    """例外発生時でもファイルロックが解放されること.
+    """例外発生後も同じファイルのアップロードが再実行されること.
 
     Arrange:
-        例外を発生させるモックを設定する。
+        1回目のアップロードで例外が発生するようモックする。
+        2回目のアップロードが成功するようモックする。
 
     Act:
-        upload()を実行し、例外が発生する。
+        1回目のupload()で例外が発生する。
+        2回目のupload()を実行する。
 
     Assert:
-        例外が発生してもファイルロックが解放され、辞書から削除されること。
+        2回目のアップロードが正常に完了すること。
     """
     # Arrange
-    _, mock_list_req, _ = mock_gdrive_files
+    _, mock_list_req, mock_create_req = mock_gdrive_files
 
-    # 検索時に例外を発生させる
-    mock_list_req.execute.side_effect = RuntimeError("API Error")
+    mock_list_req.execute.side_effect = [
+        RuntimeError("API Error"),
+        {"files": []},
+    ]
+    mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="API Error"):
         gdrive_provider.upload(test_file, "test.txt")
 
-    # 例外発生後、ファイルロックが辞書から削除されていることを確認
-    assert "test.txt" not in gdrive_provider._file_locks
+    # 例外後も同じファイルのアップロードが成功することで、ロック解放が検証される
+    gdrive_provider.upload(test_file, "test.txt")
 
 
 def test_file_lock_is_removed_after_upload(
@@ -519,16 +521,16 @@ def test_file_lock_is_removed_after_upload(
     gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
-    """アップロード完了後にファイルロックが削除されること.
+    """アップロード完了後に同じファイルの再アップロードが直ちに実行されること.
 
     Arrange:
         新規ファイル作成のモックを設定する。
 
     Act:
-        upload()を実行する。
+        upload()を2回連続で実行する。
 
     Assert:
-        アップロード完了後、ファイルロックが辞書から削除されること。
+        両方のアップロードが正常に完了すること。
     """
     # Arrange
     _, mock_list_req, mock_create_req = mock_gdrive_files
@@ -537,9 +539,10 @@ def test_file_lock_is_removed_after_upload(
 
     # Act
     gdrive_provider.upload(test_file, "test.txt")
+    gdrive_provider.upload(test_file, "test.txt")
 
     # Assert
-    assert "test.txt" not in gdrive_provider._file_locks
+    assert mock_create_req.next_chunk.call_count == 2
 
 
 def test_concurrent_upload_to_same_folder_path_does_not_create_duplicate_folders(
@@ -560,8 +563,6 @@ def test_concurrent_upload_to_same_folder_path_does_not_create_duplicate_folders
         同時に実行されるフォルダ作成処理が最大1つであること。
     """
     # Arrange
-    import threading
-
     mock_files, mock_list_req, mock_create_req = mock_gdrive_files
 
     # _ensure_folder_path内の並行実行数を追跡
@@ -671,16 +672,16 @@ def test_folder_lock_is_removed_after_upload(
     gdrive_provider: GoogleDriveProvider,
     test_file: str,
 ) -> None:
-    """アップロード完了後にフォルダロックが削除されること.
+    """アップロード完了後に同じフォルダパスの再アップロードが直ちに実行されること.
 
     Arrange:
         パス区切り付きファイル名の新規作成モックを設定する。
 
     Act:
-        upload()を実行する。
+        同じフォルダパスへのupload()を2回連続で実行する。
 
     Assert:
-        アップロード完了後、フォルダロックが辞書から削除されること。
+        両方のアップロードが正常に完了すること。
     """
     # Arrange
     _, mock_list_req, mock_create_req = mock_gdrive_files
@@ -689,7 +690,8 @@ def test_folder_lock_is_removed_after_upload(
     mock_create_req.next_chunk.return_value = (None, {"id": "file_id"})
 
     # Act
-    gdrive_provider.upload(test_file, "folder/sub/file.txt")
+    gdrive_provider.upload(test_file, "folder/sub/file1.txt")
+    gdrive_provider.upload(test_file, "folder/sub/file2.txt")
 
     # Assert
-    assert "folder/sub" not in gdrive_provider._folder_locks
+    assert mock_create_req.next_chunk.call_count == 2

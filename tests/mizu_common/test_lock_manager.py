@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import portalocker.exceptions
 import pytest
 
 from mizu_common.exceptions.already_running_error import AlreadyRunningError
@@ -12,7 +13,7 @@ from mizu_common.lock_manager import LockManager
 
 
 def test_acquire_lock_prevents_concurrent_access(tmp_path: Path) -> None:
-    """acquireが二重起動を防止すること.
+    """acquireで二重起動が防止されること.
 
     Arrange:
         portalockerをモックして、2回目のロック取得でAlreadyLockedを発生させる。
@@ -24,8 +25,6 @@ def test_acquire_lock_prevents_concurrent_access(tmp_path: Path) -> None:
         AlreadyRunningErrorが発生すること。
     """
     # Arrange
-    import portalocker.exceptions
-
     lock_manager = LockManager(lock_dir=tmp_path)
 
     with patch("mizu_common.lock_manager.portalocker.Lock") as mock_lock_class:
@@ -89,8 +88,6 @@ def test_acquire_lock_raises_error_on_stale_file(tmp_path: Path) -> None:
         StaleLockErrorが発生すること。
     """
     # Arrange
-    import portalocker.exceptions
-
     lock_path = tmp_path / ".app.lock"
     lock_path.touch()
 
@@ -124,8 +121,6 @@ def test_acquire_lock_raises_error_on_recent_file(tmp_path: Path) -> None:
         AlreadyRunningErrorが発生すること。
     """
     # Arrange
-    import portalocker.exceptions
-
     lock_path = tmp_path / ".app.lock"
     lock_path.touch()
 

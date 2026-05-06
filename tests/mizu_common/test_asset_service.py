@@ -6,9 +6,7 @@ from typing import Any
 import pytest
 
 from mizu_common.asset_service import AssetService
-from mizu_common.constants.asset_adjustment_type import AssetAdjustmentType
 from mizu_common.models.asset import Asset
-from mizu_common.models.asset_adjustment_result import AssetAdjustmentResult
 from mizu_common.models.asset_calculation import AssetCalculation
 
 
@@ -38,14 +36,16 @@ def test_calculate_current_rates_returns_correct_rates(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """現在配分比率が正しく計算されること
+    """現在配分比率が正しく計算されること.
 
-    Arrange
-    - 既知の資産構成を準備
-    Act
-    - calculate_current_ratesを実行
-    Assert
-    - 各資産の現在配分比率が正しく計算されること
+    Arrange:
+        既知の資産構成を準備する。
+
+    Act:
+        calculate_current_ratesを実行する。
+
+    Assert:
+        各資産の現在配分比率が正しく計算されること。
     """
     # Arrange
     # Act
@@ -59,12 +59,13 @@ def test_calculate_current_rates_returns_correct_rates(
 def test_calculate_current_rates_zero_total_raises(
     service: AssetService,
 ) -> None:
-    """資産合計がゼロの場合はValueErrorが送出されること
+    """資産合計がゼロの場合はValueErrorが送出されること.
 
-    Arrange
-    - 金額がゼロの資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        金額がゼロの資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -80,12 +81,13 @@ def test_calculate_current_rates_zero_total_raises(
 def test_calculate_current_rates_empty_assets_raises(
     service: AssetService,
 ) -> None:
-    """assetsが空の場合はValueErrorが送出されること
+    """assetsが空の場合はValueErrorが送出されること.
 
-    Arrange
-    - 空のassetsを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        空のassetsを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     # Act & Assert
@@ -96,12 +98,13 @@ def test_calculate_current_rates_empty_assets_raises(
 def test_calculate_current_rates_negative_total_raises(
     service: AssetService,
 ) -> None:
-    """資産合計額が0以下の場合はValueErrorが送出されること
+    """資産合計額が0以下の場合はValueErrorが送出されること.
 
-    Arrange
-    - 金額が負の資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        金額が負の資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -118,15 +121,17 @@ def test_adjust_assets_deposit_distributed(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """入金額がwater-fillingで各資産に配分されること
+    """入金額がwater-fillingで各資産に配分されること.
 
-    Arrange
-    - 入金額100,000円のデータを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 各資産への配分額が正の値であること
-    - 入金額の合計がadjustment_amountと一致すること
+    Arrange:
+        入金額100,000円のデータを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        各資産への配分額が正の値であること。
+        入金額の合計がadjustment_amountと一致すること。
     """
     # Arrange
     calculated_assets = _create_calculated_assets(sample_assets)
@@ -148,15 +153,17 @@ def test_adjust_assets_withdrawal_distributed(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """出金額がwater-fillingで各資産から減額されること
+    """出金額がwater-fillingで各資産から減額されること.
 
-    Arrange
-    - 出金額100,000円のデータを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 各資産からの減額額が負の値であること
-    - 出金額の合計がadjustment_amountと一致すること
+    Arrange:
+        出金額100,000円のデータを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        各資産からの減額額が負の値であること。
+        出金額の合計がadjustment_amountと一致すること。
     """
     # Arrange
     calculated_assets = _create_calculated_assets(sample_assets)
@@ -178,14 +185,16 @@ def test_adjust_assets_zero_adjustment_returns_unchanged(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """調整額がゼロの場合は資産が変更されないこと
+    """調整額がゼロの場合は資産が変更されないこと.
 
-    Arrange
-    - 調整額ゼロを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 全アセットのflow_amountが0であること
+    Arrange:
+        調整額ゼロを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        全アセットのflow_amountが0であること。
     """
     # Arrange
     calculated_assets = _create_calculated_assets(sample_assets)
@@ -204,14 +213,16 @@ def test_adjust_assets_zero_adjustment_returns_unchanged(
 def test_adjust_assets_zero_adjustment_empty_calculated_ok(
     service: AssetService,
 ) -> None:
-    """adjustment_amount=0かつ空calculated_assetsでエラーにならないこと
+    """adjustment_amount=0かつ空calculated_assetsでエラーにならないこと.
 
-    Arrange
-    - 空のcalculated_assetsとゼロ調整額を準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - エラーにならず結果が返ること
+    Arrange:
+        空のcalculated_assetsとゼロ調整額を準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        エラーにならず結果が返されること。
     """
     # Arrange
     # Act
@@ -226,12 +237,13 @@ def test_adjust_assets_zero_adjustment_empty_calculated_ok(
 def test_adjust_assets_empty_calculated_with_flow_raises(
     service: AssetService,
 ) -> None:
-    """入出金時に空calculated_assetsでValueErrorが送出されること
+    """入出金時に空calculated_assetsでValueErrorが送出されること.
 
-    Arrange
-    - 空のcalculated_assetsと非ゼロ調整額を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        空のcalculated_assetsと非ゼロ調整額を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     # Act & Assert
@@ -243,12 +255,13 @@ def test_adjust_assets_final_total_negative_raises(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """final_totalが0以下になる場合はValueErrorが送出されること
+    """final_totalが0以下になる場合はValueErrorが送出されること.
 
-    Arrange
-    - 出金額が総資産を超えるデータを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        出金額が総資産を超えるデータを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     calculated_assets = _create_calculated_assets(sample_assets)
@@ -261,14 +274,16 @@ def test_adjust_assets_final_total_negative_raises(
 def test_adjust_assets_single_asset_deposit(
     service: AssetService,
 ) -> None:
-    """単一資産ポートフォリオで入金が正しく動作すること
+    """単一資産ポートフォリオで入金が正しく動作すること.
 
-    Arrange
-    - 単一資産を準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 全額がその資産に追加されること
+    Arrange:
+        単一資産を準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        全額がその資産に追加されること。
     """
     # Arrange
     assets = (Asset(name="株式", amount=Decimal("50000000"), rate=Decimal("1")),)
@@ -669,14 +684,16 @@ def test_water_filling_allocation_cases_01_07(
     service: AssetService,
     case: dict[str, Any],
 ) -> None:
-    """water-filling配分が正しく動作すること（ケース01-07）
+    """water-filling配分が正しく動作すること（ケース01-07）.
 
-    Arrange
-    - テストケースのデータからテストデータを構築
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 各資産のdeltaとfinalが期待値と一致すること
+    Arrange:
+        テストケースのデータからテストデータを構築する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        各資産のdeltaとfinalが期待値と一致すること。
     """
     # Arrange
     calculated_assets, adjustment_amount = _build_test_data_from_case(case)
@@ -707,15 +724,17 @@ def test_water_filling_allocation_cases_08_12(
     service: AssetService,
     case: dict[str, Any],
 ) -> None:
-    """water-filling配分が正しく動作すること（ケース08-12）
+    """water-filling配分が正しく動作すること（ケース08-12）.
 
-    Arrange
-    - テストケースのデータからテストデータを構築
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 各資産のdeltaとfinalが期待値と一致すること
-    - エラー期待値がある場合はValueErrorが送出されること
+    Arrange:
+        テストケースのデータからテストデータを構築する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        各資産のdeltaとfinalが期待値と一致すること。
+        エラー期待値がある場合はValueErrorが送出されること。
     """
     # Arrange
     calculated_assets, adjustment_amount = _build_test_data_from_case(case)
@@ -745,12 +764,13 @@ def test_water_filling_allocation_cases_08_12(
 def test_water_filling_allocation_case_13_error(
     service: AssetService,
 ) -> None:
-    """異常系：最終総額が負になる場合はエラーが発生すること
+    """異常系: 最終総額が負になる場合はエラーが発生すること.
 
-    Arrange
-    - 出金額が総資産を超えるデータを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        出金額が総資産を超えるデータを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     case = TEST_CASES_13[0]
@@ -764,15 +784,17 @@ def test_water_filling_allocation_case_13_error(
 def test_deposit_waterfilling_two_underweight_assets(
     service: AssetService,
 ) -> None:
-    """入金時のwater-fillingで水位の低いアセットが優先されること
+    """入金時のwater-fillingで水位の低いアセットが優先されること.
 
-    Arrange
-    - 2つの不足アセットと2つの超過アセットを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 最も水位の低いアセットに多く配分されること
-    - flow_amountの合計がflowと一致すること
+    Arrange:
+        2つの不足アセットと2つの超過アセットを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        最も水位の低いアセットに多く配分されること。
+        flow_amountの合計がflowと一致すること。
     """
     # Arrange
     assets = (
@@ -799,15 +821,17 @@ def test_deposit_waterfilling_two_underweight_assets(
 def test_withdrawal_waterfilling_two_overweight_assets(
     service: AssetService,
 ) -> None:
-    """出金時のwater-fillingで水位の高いアセットが優先されること
+    """出金時のwater-fillingで水位の高いアセットが優先されること.
 
-    Arrange
-    - 2つの超過アセットと2つの不足アセットを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 最も水位の高いアセットから多く引出されること
-    - flow_amountの合計がflowと一致すること
+    Arrange:
+        2つの超過アセットと2つの不足アセットを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        最も水位の高いアセットから多く引出されること。
+        flow_amountの合計がflowと一致すること。
     """
     # Arrange
     assets = (
@@ -834,15 +858,17 @@ def test_withdrawal_waterfilling_two_overweight_assets(
 def test_all_assets_at_target_deposit_distributes_proportionally(
     service: AssetService,
 ) -> None:
-    """全アセット目標通りで入金がrate比例配分されること
+    """全アセット目標通りで入金がrate比例配分されること.
 
-    Arrange
-    - 全アセットが目標比率どおりのデータを準備
-    Act
-    - adjust_assetsを実行
-    Assert
-    - 各アセットにrate比例で配分されること
-    - flow_amountの合計がflowと一致すること
+    Arrange:
+        全アセットが目標比率どおりのデータを準備する。
+
+    Act:
+        adjust_assetsを実行する。
+
+    Assert:
+        各アセットにrate比例で配分されること。
+        flow_amountの合計がflowと一致すること。
     """
     # Arrange
     assets = (
@@ -865,12 +891,13 @@ def test_all_assets_at_target_deposit_distributes_proportionally(
 
 
 def test_public_api_includes_asset_classes() -> None:
-    """__all__にAssetService関連クラスが含まれること
+    """__all__にAssetService関連クラスが含まれること.
 
-    Arrange
-    - mizu_commonパッケージをインポート
-    Act & Assert
-    - __all__に必要なクラスが含まれること
+    Arrange:
+        mizu_commonパッケージをインポートする。
+
+    Act & Assert:
+        __all__に必要なクラスが含まれること。
     """
     # Arrange
     import mizu_common
@@ -884,12 +911,13 @@ def test_public_api_includes_asset_classes() -> None:
 
 
 def test_public_api_asset_adjustment_type_importable() -> None:
-    """AssetAdjustmentTypeがトップレベルimport可能でEnum値が正しいこと
+    """AssetAdjustmentTypeがトップレベルimport可能でEnum値が正しいこと.
 
-    Arrange
-    - mizu_commonパッケージからAssetAdjustmentTypeをimport
-    Act & Assert
-    - DEPOSITの値が"deposit"であること
+    Arrange:
+        mizu_commonパッケージからAssetAdjustmentTypeをインポートする。
+
+    Act & Assert:
+        DEPOSITの値が"deposit"であること。
     """
     # Arrange
     from mizu_common import AssetAdjustmentType as T
@@ -900,66 +928,16 @@ def test_public_api_asset_adjustment_type_importable() -> None:
     assert T.NONE.value == "none"
 
 
-def test_adjustment_result_operation_type_deposit() -> None:
-    """正のadjustment_amountでDEPOSITが返されること"""
-    # Arrange
-    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
-    calculated_assets = _create_calculated_assets(assets)
-
-    # Act
-    result = AssetAdjustmentResult(
-        assets=assets,
-        calculated_assets=calculated_assets,
-        adjustment_amount=Decimal("10000"),
-    )
-
-    # Assert
-    assert result.operation_type == AssetAdjustmentType.DEPOSIT
-
-
-def test_adjustment_result_operation_type_withdrawal() -> None:
-    """負のadjustment_amountでWITHDRAWALが返されること"""
-    # Arrange
-    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
-    calculated_assets = _create_calculated_assets(assets)
-
-    # Act
-    result = AssetAdjustmentResult(
-        assets=assets,
-        calculated_assets=calculated_assets,
-        adjustment_amount=Decimal("-10000"),
-    )
-
-    # Assert
-    assert result.operation_type == AssetAdjustmentType.WITHDRAWAL
-
-
-def test_adjustment_result_operation_type_none() -> None:
-    """ゼロのadjustment_amountでNONEが返されること"""
-    # Arrange
-    assets = (Asset(name="株式", amount=Decimal("10000"), rate=Decimal("1")),)
-    calculated_assets = _create_calculated_assets(assets)
-
-    # Act
-    result = AssetAdjustmentResult(
-        assets=assets,
-        calculated_assets=calculated_assets,
-        adjustment_amount=Decimal("0"),
-    )
-
-    # Assert
-    assert result.operation_type == AssetAdjustmentType.NONE
-
-
 def test_calculate_current_rates_zero_rate_raises(
     service: AssetService,
 ) -> None:
-    """rateがゼロの資産がある場合はValueErrorが送出されること
+    """rateがゼロの資産がある場合はValueErrorが送出されること.
 
-    Arrange
-    - rateにゼロを含む資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rateにゼロを含む資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -975,12 +953,13 @@ def test_calculate_current_rates_zero_rate_raises(
 def test_calculate_current_rates_negative_rate_raises(
     service: AssetService,
 ) -> None:
-    """rateが負の資産がある場合はValueErrorが送出されること
+    """rateが負の資産がある場合はValueErrorが送出されること.
 
-    Arrange
-    - rateに負値を含む資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rateに負値を含む資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -997,12 +976,13 @@ def test_adjust_assets_fractional_amount_raises(
     service: AssetService,
     sample_assets: tuple[Asset, ...],
 ) -> None:
-    """adjustment_amountが小数の場合はValueErrorが送出されること
+    """adjustment_amountが小数の場合はValueErrorが送出されること.
 
-    Arrange
-    - 小数のadjustment_amountを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        小数のadjustment_amountを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     calculated_assets = _create_calculated_assets(sample_assets)
@@ -1015,12 +995,13 @@ def test_adjust_assets_fractional_amount_raises(
 def test_adjust_assets_zero_rate_raises(
     service: AssetService,
 ) -> None:
-    """rateがゼロのAssetCalculationを直接渡した場合はValueErrorが送出されること
+    """rateがゼロのAssetCalculationを直接渡した場合はValueErrorが送出されること.
 
-    Arrange
-    - rate=0のAssetCalculationを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rate=0のAssetCalculationを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -1037,12 +1018,13 @@ def test_adjust_assets_zero_rate_raises(
 def test_calculate_current_rates_rates_sum_below_one_raises(
     service: AssetService,
 ) -> None:
-    """rate合計が1.0未満の場合はValueErrorが送出されること
+    """rate合計が1.0未満の場合はValueErrorが送出されること.
 
-    Arrange
-    - rate合計が0.8の資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rate合計が0.8の資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -1058,12 +1040,13 @@ def test_calculate_current_rates_rates_sum_below_one_raises(
 def test_calculate_current_rates_rates_sum_above_one_raises(
     service: AssetService,
 ) -> None:
-    """rate合計が1.0超過の場合はValueErrorが送出されること
+    """rate合計が1.0超過の場合はValueErrorが送出されること.
 
-    Arrange
-    - rate合計が1.2の資産を準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rate合計が1.2の資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -1079,12 +1062,13 @@ def test_calculate_current_rates_rates_sum_above_one_raises(
 def test_adjust_assets_rates_sum_below_one_raises(
     service: AssetService,
 ) -> None:
-    """rate合計が0.8のcalculated_assetsでValueErrorが送出されること
+    """rate合計が0.8のcalculated_assetsでValueErrorが送出されること.
 
-    Arrange
-    - rate合計0.8のAssetCalculationを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rate合計0.8のAssetCalculationを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -1101,12 +1085,13 @@ def test_adjust_assets_rates_sum_below_one_raises(
 def test_adjust_assets_rates_sum_above_one_raises(
     service: AssetService,
 ) -> None:
-    """rate合計が1.2のcalculated_assetsでValueErrorが送出されること
+    """rate合計が1.2のcalculated_assetsでValueErrorが送出されること.
 
-    Arrange
-    - rate合計1.2のAssetCalculationを準備
-    Act & Assert
-    - ValueErrorが送出されること
+    Arrange:
+        rate合計1.2のAssetCalculationを準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
     """
     # Arrange
     assets = (
@@ -1123,14 +1108,16 @@ def test_adjust_assets_rates_sum_above_one_raises(
 def test_adjust_assets_zero_adjustment_resets_flow_amount(
     service: AssetService,
 ) -> None:
-    """前回調整済みのcalculated_assetsにゼロ調整するとflow_amountが0にリセットされること
+    """前回調整済みのcalculated_assetsにゼロ調整するとflow_amountが0にリセットされること.
 
-    Arrange
-    - 入金調整済み（flow_amount≠0）のcalculated_assetsを準備
-    Act
-    - adjustment_amount=0でadjust_assetsを実行
-    Assert
-    - 全calculated_assetsのflow_amountが0であること
+    Arrange:
+        入金調整済み（flow_amount≠0）のcalculated_assetsを準備する。
+
+    Act:
+        adjustment_amount=0でadjust_assetsを実行する。
+
+    Assert:
+        全calculated_assetsのflow_amountが0であること。
     """
     # Arrange
     assets = (
@@ -1151,14 +1138,16 @@ def test_adjust_assets_zero_adjustment_resets_flow_amount(
 def test_adjust_assets_recomputes_current_rate(
     service: AssetService,
 ) -> None:
-    """調整後のcurrent_rateが新しい合計額に基づく正しい値であること
+    """調整後のcurrent_rateが新しい合計額に基づく正しい値であること.
 
-    Arrange
-    - 2資産ポートフォリオを準備
-    Act
-    - 入金してadjust_assetsを実行
-    Assert
-    - 各calculated_assetsのcurrent_rateが新しい金額/新しい合計額に一致すること
+    Arrange:
+        2資産ポートフォリオを準備する。
+
+    Act:
+        入金してadjust_assetsを実行する。
+
+    Assert:
+        各calculated_assetsのcurrent_rateが新しい金額/新しい合計額に一致すること。
     """
     # Arrange
     assets = (

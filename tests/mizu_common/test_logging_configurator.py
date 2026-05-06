@@ -26,6 +26,7 @@ def test_init_adds_handler_to_root_logger(string_stream: StringIO) -> None:
     Assert:
         ルートロガーにハンドラーが1つ追加されていること。
     """
+    # Arrange
     # Act
     LoggingConfigurator(level=logging.DEBUG, stream=string_stream)
 
@@ -46,6 +47,7 @@ def test_multiple_init_does_not_duplicate_handlers(string_stream: StringIO) -> N
     Assert:
         ルートロガーのハンドラー数が1のままであること。
     """
+    # Arrange
     # Act
     LoggingConfigurator(level=logging.INFO, stream=string_stream)
     LoggingConfigurator(level=logging.DEBUG, stream=string_stream)

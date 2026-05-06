@@ -21,7 +21,7 @@ def discord_client() -> DiscordClient:
 def test_send_message_sends_text_message_successfully(
     mocker: Any, discord_client: DiscordClient
 ) -> None:
-    """send_messageがテキストメッセージを正常に送信すること.
+    """send_messageでテキストメッセージが正常に送信されること.
 
     Arrange:
         Webhook URLを用意する。
@@ -55,7 +55,7 @@ def test_send_message_sends_text_message_successfully(
 def test_send_message_with_username_and_avatar(
     mocker: Any, discord_client: DiscordClient
 ) -> None:
-    """send_messageがユーザー名とアバターを含めて送信されること.
+    """send_messageでユーザー名とアバターが含めて送信されること.
 
     Arrange:
         Webhook URLを用意する。
@@ -96,7 +96,7 @@ def test_send_message_with_username_and_avatar(
 def test_send_message_raises_error_on_failure(
     mocker: Any, discord_client: DiscordClient
 ) -> None:
-    """send_messageが失敗時にDiscordWebhookErrorが発生すること.
+    """send_messageの失敗時にDiscordWebhookErrorが発生されること.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -121,7 +121,7 @@ def test_send_message_raises_error_on_failure(
 def test_send_embed_sends_embed_message_successfully(
     mocker: Any, discord_client: DiscordClient
 ) -> None:
-    """send_embedがEmbedメッセージを正常に送信すること.
+    """send_embedでEmbedメッセージが正常に送信されること.
 
     Arrange:
         Webhook URLを用意する。
@@ -171,7 +171,7 @@ def test_send_embed_sends_embed_message_successfully(
 def test_send_embeds_with_multiple_embeds(
     mocker: Any, discord_client: DiscordClient
 ) -> None:
-    """send_embedsが複数のEmbedを送信できること.
+    """send_embedsで複数のEmbedが送信されること.
 
     Arrange:
         Webhook URLを用意する。
