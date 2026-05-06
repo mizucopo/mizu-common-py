@@ -11,7 +11,7 @@ from mizu_common.google_oauth_client import GoogleOAuthClient
 
 
 def test_get_access_token_caches_token(mocker: Any) -> None:
-    """get_access_tokenがトークンをキャッシュすること.
+    """get_access_tokenでトークンがキャッシュされること.
 
     Arrange:
         トークンリフレッシュAPIのレスポンスをモックする。
@@ -45,7 +45,7 @@ def test_get_access_token_caches_token(mocker: Any) -> None:
 
 
 def test_get_access_token_raises_error_on_failure(mocker: Any) -> None:
-    """トークン取得失敗時にRuntimeErrorが発生すること.
+    """トークン取得失敗時にRuntimeErrorが発生されること.
 
     Arrange:
         エラーレスポンスをモックする。
@@ -122,7 +122,7 @@ def test_refresh_on_unauthorized(
     expected_refresh_count: int,
     expected_call_count: int,
 ) -> None:
-    """refresh_on_unauthorizedの正常系を検証すること.
+    """refresh_on_unauthorizedの正常系が検証されること.
 
     Arrange:
         トークンリフレッシュAPIのレスポンスをモックする。
@@ -251,7 +251,7 @@ def test_refresh_on_unauthorized_raises_on_second_failure(mocker: Any) -> None:
 def test_device_authentication_completes_successfully_with_valid_credentials(
     mocker: Any,
 ) -> None:
-    """有効な認証情報でデバイス認証が正常に完了すること.
+    """有効な認証情報でデバイス認証が正常に完了されること.
 
     Arrange:
         有効なOAuthクライアントIDとシークレットを用意する。
@@ -321,7 +321,7 @@ def test_device_authentication_completes_successfully_with_valid_credentials(
 def test_device_authentication_returns_none_on_oauth_errors(
     mocker: Any, error_response: dict[str, str]
 ) -> None:
-    """OAuthエラーが発生した場合、デバイス認証がNoneを返すこと.
+    """OAuthエラーが発生した場合、デバイス認証でNoneが返されること.
 
     Arrange:
         有効なOAuthクライアント認証情報を用意する。
@@ -375,7 +375,7 @@ def test_device_authentication_returns_none_on_oauth_errors(
 def test_device_authentication_succeeds_after_slow_down_response(
     mocker: Any,
 ) -> None:
-    """Googleからslow_down応答が返された場合でも、最終的に認証が成功すること.
+    """Googleからslow_down応答が返された場合でも、最終的に認証が成功されること.
 
     Arrange:
         有効なOAuthクライアント認証情報を用意する。

@@ -40,7 +40,7 @@ def test_acquire_lock_prevents_concurrent_access(tmp_path: Path) -> None:
 
 
 def test_acquire_lock_releases_on_exit(tmp_path: Path) -> None:
-    """acquireが終了時にロックを解放すること.
+    """acquireが終了時にロックが解放されること.
 
     Arrange:
         portalockerをモックする。

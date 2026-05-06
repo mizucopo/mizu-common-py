@@ -10,7 +10,7 @@ from mizu_common.logging_configurator import LoggingConfigurator
 
 @pytest.fixture
 def string_stream() -> StringIO:
-    """テスト用StringIOストリームを返す."""
+    """テスト用StringIOストリームが返されること."""
     return StringIO()
 
 
@@ -36,7 +36,7 @@ def test_init_adds_handler_to_root_logger(string_stream: StringIO) -> None:
 
 
 def test_multiple_init_does_not_duplicate_handlers(string_stream: StringIO) -> None:
-    """複数回初期化してもハンドラーが重複しないこと.
+    """複数回初期化してもハンドラーが重複して追加されないこと.
 
     Arrange:
         出力先としてStringIOを準備する。
@@ -59,7 +59,7 @@ def test_multiple_init_does_not_duplicate_handlers(string_stream: StringIO) -> N
 
 
 def test_force_parameter_allows_reinitialization(string_stream: StringIO) -> None:
-    """forceパラメータで再初期化できること.
+    """forceパラメータで再初期化されること.
 
     Arrange:
         出力先としてStringIOを準備する。
@@ -85,7 +85,7 @@ def test_force_parameter_allows_reinitialization(string_stream: StringIO) -> Non
 
 
 def test_reset_clears_initialization_state(string_stream: StringIO) -> None:
-    """resetメソッドが初期化状態をクリアすること.
+    """resetメソッドで初期化状態がクリアされること.
 
     Arrange:
         LoggingConfiguratorを初期化する。

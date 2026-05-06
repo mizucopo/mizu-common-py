@@ -14,7 +14,7 @@ TEST_WEBHOOK_URL = "https://discord.com/api/webhooks/123/abc"
 
 @pytest.fixture
 def discord_client() -> DiscordClient:
-    """テスト用DiscordClientインスタンスを返す."""
+    """テスト用DiscordClientインスタンスが返されること."""
     return DiscordClient(TEST_WEBHOOK_URL)
 
 
@@ -205,7 +205,7 @@ def test_send_embeds_with_multiple_embeds(
 def test_send_embeds_raises_error_when_exceeds_limit(
     discord_client: DiscordClient,
 ) -> None:
-    """send_embedsがEmbed数11以上でValueErrorを発生すること.
+    """send_embedsでEmbed数11以上の場合にValueErrorが発生されること.
 
     Arrange:
         11個のEmbedを用意する。

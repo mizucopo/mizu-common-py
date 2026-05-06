@@ -15,7 +15,7 @@ from mizu_common.youtube_client import YouTubeClient
 
 @pytest.fixture
 def mock_oauth_client() -> GoogleOAuthClient:
-    """モックされたOAuth認証クライアントを返す."""
+    """モックされたOAuth認証クライアントが返されること."""
     client = Mock(spec=GoogleOAuthClient)
     client.get_headers.return_value = {"Authorization": "Bearer test_token"}
     return client

@@ -1,4 +1,4 @@
-"""GoogleDriveProvider のアップロード機能のテスト。"""
+"""GoogleDriveProvider のアップロード機能のテスト."""
 
 import threading
 from typing import Any
@@ -11,11 +11,7 @@ from mizu_common.google_drive.provider import GoogleDriveProvider
 
 @pytest.fixture
 def mock_gdrive_credentials() -> Any:
-    """モック化された OAuth2 認証情報フィクスチャ。
-
-    Returns:
-        モック化された認証情報オブジェクト
-    """
+    """モック化されたOAuth2認証情報が返されること."""
     mock_creds = MagicMock()
     mock_creds.token = "mock_token"
     mock_creds.refresh_token = "mock_refresh_token"
@@ -26,11 +22,7 @@ def mock_gdrive_credentials() -> Any:
 
 @pytest.fixture
 def mock_gdrive_service() -> Any:
-    """モック化された Google Drive サービスフィクスチャ。
-
-    Returns:
-        モック化された Drive サービスオブジェクト
-    """
+    """モック化されたGoogle Driveサービスが返されること."""
     mock_service = MagicMock()
     mock_files = MagicMock()
     mock_service.files.return_value = mock_files
@@ -39,11 +31,7 @@ def mock_gdrive_service() -> Any:
 
 @pytest.fixture
 def test_file(tmp_path: Any) -> str:
-    """テスト用の一時ファイルを作成するフィクスチャ。
-
-    Returns:
-        テスト用ファイルのパス
-    """
+    """テスト用の一時ファイルが作成されること."""
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("test content")
     return str(file_path)
@@ -51,11 +39,7 @@ def test_file(tmp_path: Any) -> str:
 
 @pytest.fixture
 def mock_gdrive_files(mock_gdrive_service: Any) -> tuple[Any, Any, Any]:
-    """モック化された Google Drive files リソース.
-
-    Returns:
-        (mock_files, mock_list_req, mock_create_req) のタプル
-    """
+    """モック化されたGoogle Drive filesリソースが返されること."""
     mock_files = mock_gdrive_service.files.return_value
     mock_list_req = mock_files.list.return_value
     mock_create_req = mock_files.create.return_value
@@ -258,6 +242,7 @@ def test_sanitize_name_handles_various_inputs(raw_name: str, expected: str) -> N
     Assert:
         期待されるサニタイズ結果が返されること。
     """
+    # Arrange
     # Act
     result = GoogleDriveProvider.sanitize_name(raw_name)
 
