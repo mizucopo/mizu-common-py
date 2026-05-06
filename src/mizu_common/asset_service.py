@@ -73,9 +73,12 @@ class AssetService:
         """
         if adjustment_amount == 0:
             assets = tuple(calc.asset for calc in calculated_assets)
+            zero_flow = tuple(
+                replace(calc, flow_amount=Decimal("0")) for calc in calculated_assets
+            )
             return AssetAdjustmentResult(
                 assets=assets,
-                calculated_assets=calculated_assets,
+                calculated_assets=zero_flow,
                 adjustment_amount=adjustment_amount,
             )
 
@@ -132,9 +135,15 @@ class AssetService:
             new_calculated_assets.append(new_calc)
             new_assets.append(new_calc.asset)
 
+        new_total = sum(asset.amount for asset in new_assets)
+        result_calculated = tuple(
+            replace(calc, current_rate=asset.amount / new_total)
+            for calc, asset in zip(new_calculated_assets, new_assets, strict=True)
+        )
+
         return AssetAdjustmentResult(
             assets=tuple(new_assets),
-            calculated_assets=tuple(new_calculated_assets),
+            calculated_assets=result_calculated,
             adjustment_amount=adjustment_amount,
         )
 

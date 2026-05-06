@@ -1118,3 +1118,60 @@ def test_adjust_assets_rates_sum_above_one_raises(
     # Act & Assert
     with pytest.raises(ValueError, match="rates must sum to 1"):
         service.adjust_assets(calculated_assets, Decimal("1000"))
+
+
+def test_adjust_assets_zero_adjustment_resets_flow_amount(
+    service: AssetService,
+) -> None:
+    """前回調整済みのcalculated_assetsにゼロ調整するとflow_amountが0にリセットされること
+
+    Arrange
+    - 入金調整済み（flow_amount≠0）のcalculated_assetsを準備
+    Act
+    - adjustment_amount=0でadjust_assetsを実行
+    Assert
+    - 全calculated_assetsのflow_amountが0であること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("60000000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("40000000"), rate=Decimal("0.40")),
+    )
+    calculated = service.calculate_current_rates(assets)
+    adjusted = service.adjust_assets(calculated, Decimal("10000"))
+
+    # Act
+    result = service.adjust_assets(adjusted.calculated_assets, Decimal("0"))
+
+    # Assert
+    for calc in result.calculated_assets:
+        assert calc.flow_amount == Decimal("0")
+
+
+def test_adjust_assets_recomputes_current_rate(
+    service: AssetService,
+) -> None:
+    """調整後のcurrent_rateが新しい合計額に基づく正しい値であること
+
+    Arrange
+    - 2資産ポートフォリオを準備
+    Act
+    - 入金してadjust_assetsを実行
+    Assert
+    - 各calculated_assetsのcurrent_rateが新しい金額/新しい合計額に一致すること
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("60000000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("40000000"), rate=Decimal("0.40")),
+    )
+    calculated = service.calculate_current_rates(assets)
+
+    # Act
+    result = service.adjust_assets(calculated, Decimal("10000"))
+
+    # Assert
+    new_total = sum(asset.amount for asset in result.assets)
+    for calc in result.calculated_assets:
+        expected_rate = calc.asset.amount / new_total
+        assert calc.current_rate == expected_rate
