@@ -109,7 +109,7 @@ class DiscordClient:
 
         truncated_suffix = "\n... (切り捨てられました)"
         chunks: list[str] = []
-        current_chunk = ""
+        current_chunk: str | None = None
         for line in content.split("\n"):
             if len(line) > self.MAX_MESSAGE_LENGTH:
                 line = (
@@ -117,7 +117,10 @@ class DiscordClient:
                     + truncated_suffix
                 )
 
-            candidate = current_chunk + "\n" + line if current_chunk else line
+            if current_chunk is not None:
+                candidate = current_chunk + "\n" + line
+            else:
+                candidate = line
             if len(candidate) > self.MAX_MESSAGE_LENGTH:
                 if current_chunk:
                     chunks.append(current_chunk)

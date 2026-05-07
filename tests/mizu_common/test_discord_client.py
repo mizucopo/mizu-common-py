@@ -426,3 +426,40 @@ def test_send_message_empty_string_sends_single_request(
     # Assert
     assert transport.request_count == 1
     assert transport.last_request.json == {"content": ""}
+
+
+def test_send_message_sends_newline_only_long_message_in_chunks(
+    mocker: Any,
+) -> None:
+    """改行のみの2000文字超メッセージが分割送信されること.
+
+    Arrange:
+        改行のみで2000文字を超えるメッセージを用意する。
+        成功レスポンスを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        1回以上POSTされること。
+        全チャンクが2000文字以下であること。
+        空文字列チャンクが含まれないこと。
+    """
+    # Arrange
+    transport = FakeHttpTransport()
+    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
+    client = DiscordClient(TEST_WEBHOOK_URL)
+    message = "\n" * 2001
+
+    # Act
+    client.send_message(message)
+
+    # Assert
+    assert transport.request_count >= 1
+    for req in transport.requests:
+        payload = req.json
+        assert payload is not None
+        content = payload["content"]
+        assert isinstance(content, str)
+        assert content != ""
+        assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
