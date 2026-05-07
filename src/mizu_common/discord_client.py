@@ -19,6 +19,7 @@ class DiscordClient:
     """
 
     MAX_EMBEDS = 10
+    MAX_MESSAGE_LENGTH = 2000
 
     def __init__(self, webhook_url: str) -> None:
         """クライアントを初期化する.
@@ -36,6 +37,8 @@ class DiscordClient:
     ) -> None:
         """テキストメッセージを送信する.
 
+        2000文字を超える場合は自動的に分割して複数回送信する。
+
         Args:
             content: 送信するメッセージ内容
             username: オーバーライドするユーザー名
@@ -44,8 +47,10 @@ class DiscordClient:
         Raises:
             DiscordWebhookError: メッセージの送信に失敗した場合
         """
-        payload = self._build_payload({"content": content}, username, avatar_url)
-        self._send_request(payload)
+        chunks = self._split_message(content)
+        for chunk in chunks:
+            payload = self._build_payload({"content": chunk}, username, avatar_url)
+            self._send_request(payload)
 
     def send_embed(
         self,
@@ -92,6 +97,39 @@ class DiscordClient:
             {"embeds": [e.to_dict() for e in embeds]}, username, avatar_url
         )
         self._send_request(payload)
+
+    def _split_message(self, content: str) -> list[str]:
+        """メッセージをDiscordの文字数制限に合わせて行単位で分割する.
+
+        1行がMAX_MESSAGE_LENGTHを超える場合は切り捨て、末尾に通知を付記する。
+        空文字列チャンクは生成しない。
+        """
+        if len(content) <= self.MAX_MESSAGE_LENGTH:
+            return [content]
+
+        truncated_suffix = "\n... (切り捨てられました)"
+        chunks: list[str] = []
+        current_chunk: str | None = None
+        for line in content.split("\n"):
+            if len(line) > self.MAX_MESSAGE_LENGTH:
+                line = (
+                    line[: self.MAX_MESSAGE_LENGTH - len(truncated_suffix)]
+                    + truncated_suffix
+                )
+
+            if current_chunk is not None:
+                candidate = current_chunk + "\n" + line
+            else:
+                candidate = line
+            if len(candidate) > self.MAX_MESSAGE_LENGTH:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = line
+            else:
+                current_chunk = candidate
+        if current_chunk:
+            chunks.append(current_chunk)
+        return chunks
 
     def _build_payload(
         self,

@@ -363,12 +363,55 @@ client.send_embed(embed)
 
 - `__init__(webhook_url: str)` - Webhook URLでクライアントを初期化
 - `send_message(content, username=None, avatar_url=None) -> None` - テキストメッセージを送信
+  - 2000文字を超えるメッセージは自動的に行単位で分割して複数回送信する
+  - 分割送信中に失敗した場合、その時点で `DiscordWebhookError` を送出する（送信済みチャンクは取り消せない）
   - 失敗時 `DiscordWebhookError` を送出
 - `send_embed(embed, username=None, avatar_url=None) -> None` - Embedメッセージを送信
   - 失敗時 `DiscordWebhookError` を送出
 - `send_embeds(embeds, username=None, avatar_url=None) -> None` - 複数のEmbedを送信
   - Embed数が10を超える場合 `ValueError` を送出
   - 失敗時 `DiscordWebhookError` を送出
+
+---
+
+### RetryConfig (dataclass)
+
+リトライ設定を表すデータクラス。
+
+```python
+from mizu_common.retry_config import RetryConfig
+
+config = RetryConfig(count=2, interval=10.0)
+```
+
+- `count: int` — リトライ回数（0=リトライなし）。初回実行後の追加試行回数。
+- `interval: float` — リトライ間隔（秒）
+- `count < 0` または `interval <= 0` の場合 `ValueError` を送出
+
+---
+
+### AsyncRetryable
+
+設定に基づいて非同期関数をリトライ実行するクラス。
+
+```python
+import httpx
+
+from mizu_common.async_retryable import AsyncRetryable
+from mizu_common.retry_config import RetryConfig
+
+retry = AsyncRetryable(
+    config=RetryConfig(count=2, interval=10.0),
+    transient_exceptions=(httpx.ConnectError, httpx.TimeoutException),
+)
+result = await retry.execute(lambda: fetch_data())
+```
+
+- `__init__(config: RetryConfig, transient_exceptions: tuple[type[Exception], ...] = ())`
+- `async execute(fn: Callable[[], Awaitable[T]]) -> T` — 関数を実行し、一時的例外時はリトライ
+  - `transient_exceptions` に含まれない例外はリトライせず即座に送出
+  - `transient_exceptions=()` の場合は例外を捕捉せず即座に送出
+  - 全試行失敗時は最後の例外を送出
 
 ---
 
