@@ -15,10 +15,12 @@ Python用共通ライブラリ。
 - **BackupManager**: ディレクトリのzipアーカイブバックアップ
 - **LockManager**: ファイルロックによる二重起動防止（stale lock検出対応）
 - **LoggingConfigurator**: アプリケーション全体のログ設定管理
+- **RetryConfig**: リトライ設定を表すデータクラス
+- **AsyncRetryable**: 非同期関数のリトライ実行クラス
 
 ### Discord連携
 
-- **DiscordClient**: Discord Webhookを使用したメッセージ・Embed送信
+- **DiscordClient**: Discord Webhookを使用したメッセージ・Embed送信（2000文字超は自動分割）
 
 ### 資産管理
 
@@ -31,6 +33,7 @@ Python用共通ライブラリ。
 - **Asset**: 資産データを表すデータクラス
 - **AssetCalculation**: 資産の計算結果を表すデータクラス
 - **AssetAdjustmentResult**: 資産調整結果を表すデータクラス
+- **RetryConfig**: リトライ設定を表すデータクラス（count, interval）
 
 ### 定数
 
@@ -68,6 +71,30 @@ uv sync
 ```bash
 # テスト実行（lint + 型チェック + テスト）
 uv run task test
+```
+
+## 使用例
+
+### 非同期リトライ
+
+```python
+from mizu_common.async_retryable import AsyncRetryable
+from mizu_common.retry_config import RetryConfig
+
+retry = AsyncRetryable(
+    config=RetryConfig(count=2, interval=10.0),
+    transient_exceptions=(ConnectionError, TimeoutError),
+)
+result = await retry.execute(lambda: fetch_data())
+```
+
+### Discordメッセージ送信
+
+```python
+from mizu_common import DiscordClient
+
+client = DiscordClient(webhook_url="https://discord.com/api/webhooks/...")
+client.send_message("2000文字を超える場合は自動的に分割送信されます")
 ```
 
 ## ライセンス
