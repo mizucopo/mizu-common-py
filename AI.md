@@ -250,7 +250,8 @@ for asset in result.assets:
   - `assets`が空の場合 `ValueError` を送出
   - `rate`が正でない場合 `ValueError` を送出
   - `rate`の合計が1でない場合 `ValueError` を送出
-  - 資産合計額が0以下の場合 `ValueError` を送出
+  - 全資産額がゼロの場合、全 `current_rate` を `Decimal("0")` として返す
+  - 資産合計額が負の場合、または正負相殺でゼロになる場合は `ValueError` を送出
 - `adjust_assets(calculated_assets: tuple[AssetCalculation, ...], adjustment_amount: Decimal) -> AssetAdjustmentResult` - 入出金に応じて資産を調整
   - `adjustment_amount` が正: 入金、負: 出金、0: 変更なし（**整数のみ対応**）
   - `adjustment_amount`が整数でない場合 `ValueError` を送出

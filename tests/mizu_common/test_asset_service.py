@@ -58,16 +58,19 @@ def test_calculate_current_rates_returns_correct_rates(
     assert result[1].current_rate == Decimal("0.4")
 
 
-def test_calculate_current_rates_zero_total_raises(
+def test_calculate_current_rates_zero_total_returns_zero_rates(
     service: AssetService,
 ) -> None:
-    """資産合計がゼロの場合はValueErrorが送出されること.
+    """全資産額がゼロの場合はcurrent_rateが0で返されること.
 
     Arrange:
-        金額がゼロの資産を準備する。
+        金額がすべてゼロの資産を準備する。
 
-    Act & Assert:
-        ValueErrorが送出されること。
+    Act:
+        calculate_current_ratesを実行する。
+
+    Assert:
+        全資産のcurrent_rateがDecimal("0")であること。
     """
     # Arrange
     assets = (
@@ -75,9 +78,12 @@ def test_calculate_current_rates_zero_total_raises(
         Asset(name="債券", amount=Decimal("0"), rate=Decimal("0.40")),
     )
 
-    # Act & Assert
-    with pytest.raises(ValueError, match="total amount must be positive"):
-        service.calculate_current_rates(assets)
+    # Act
+    result = service.calculate_current_rates(assets)
+
+    # Assert
+    for calc in result:
+        assert calc.current_rate == Decimal("0")
 
 
 def test_calculate_current_rates_empty_assets_raises(
@@ -100,7 +106,7 @@ def test_calculate_current_rates_empty_assets_raises(
 def test_calculate_current_rates_negative_total_raises(
     service: AssetService,
 ) -> None:
-    """資産合計額が0以下の場合はValueErrorが送出されること.
+    """資産合計額が負の場合はValueErrorが送出されること.
 
     Arrange:
         金額が負の資産を準備する。
@@ -115,8 +121,65 @@ def test_calculate_current_rates_negative_total_raises(
     )
 
     # Act & Assert
-    with pytest.raises(ValueError, match="total amount must be positive"):
+    with pytest.raises(ValueError, match="total amount must not be negative"):
         service.calculate_current_rates(assets)
+
+
+def test_calculate_current_rates_offsetting_zero_raises(
+    service: AssetService,
+) -> None:
+    """正負相殺で合計ゼロになる場合はValueErrorが送出されること.
+
+    Arrange:
+        正と負の金額が相殺されて合計ゼロになる資産を準備する。
+
+    Act & Assert:
+        ValueErrorが送出されること。
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("1000"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("-1000"), rate=Decimal("0.40")),
+    )
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match="total amount must not be zero unless all amounts are zero"
+    ):
+        service.calculate_current_rates(assets)
+
+
+def test_zero_assets_first_deposit_distributes_by_target_rate(
+    service: AssetService,
+) -> None:
+    """全資産ゼロから初回入金で目標比率どおりに配分されること.
+
+    Arrange:
+        金額がすべてゼロの資産と入金額1000を準備する。
+
+    Act:
+        calculate_current_ratesを実行後、adjust_assetsで入金する。
+
+    Assert:
+        各資産への配分額が目標比率に比例すること。
+        flow_amountの合計が1000であること。
+    """
+    # Arrange
+    assets = (
+        Asset(name="株式", amount=Decimal("0"), rate=Decimal("0.60")),
+        Asset(name="債券", amount=Decimal("0"), rate=Decimal("0.40")),
+    )
+
+    # Act
+    calculated = service.calculate_current_rates(assets)
+    result = service.adjust_assets(calculated, Decimal("1000"))
+
+    # Assert
+    flow_map = {calc.asset.name: calc.flow_amount for calc in result.calculated_assets}
+    assert flow_map["株式"] == Decimal("600")
+    assert flow_map["債券"] == Decimal("400")
+    total = sum(calc.flow_amount for calc in result.calculated_assets)
+    assert total == Decimal("1000")
 
 
 def test_adjust_assets_deposit_distributed(
