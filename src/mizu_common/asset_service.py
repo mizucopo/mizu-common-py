@@ -26,7 +26,8 @@ class AssetService:
             ValueError: assetsが空の場合、
                 またはrateが正でない場合、
                 またはrateの合計が1でない場合、
-                または資産合計額が0以下の場合
+                または資産合計額が負の場合、
+                または正負相殺で合計額がゼロになる場合
         """
         if not assets:
             raise ValueError("assets must not be empty")
@@ -38,13 +39,21 @@ class AssetService:
             raise ValueError("rates must sum to 1")
 
         sum_amount = sum(asset.amount for asset in assets)
-        if sum_amount <= 0:
-            raise ValueError("total amount must be positive")
+
+        if sum_amount < 0:
+            raise ValueError("total amount must not be negative")
+
+        if sum_amount == 0 and any(asset.amount != 0 for asset in assets):
+            raise ValueError(
+                "total amount must not be zero unless all amounts are zero"
+            )
 
         return tuple(
             AssetCalculation(
                 asset=asset,
-                current_rate=asset.amount / sum_amount,
+                current_rate=(
+                    Decimal("0") if sum_amount == 0 else asset.amount / sum_amount
+                ),
             )
             for asset in assets
         )
