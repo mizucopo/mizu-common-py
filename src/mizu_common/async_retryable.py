@@ -62,6 +62,5 @@ class AsyncRetryable:
                         self._config.count + 1,
                         e,
                     )
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("Unexpected state: no error after retry exhaustion")
+        assert last_error is not None, "unreachable: at least one attempt is guaranteed"
+        raise last_error
