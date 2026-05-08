@@ -342,33 +342,37 @@ GoogleScope.DRIVE_FILE        # "https://www.googleapis.com/auth/drive.file"
 
 ### DiscordClient
 
-Discord Webhookを使用したメッセージ送信機能を提供します。
+Discord Webhookを使用したメッセージ送信機能を提供します。非同期API（async context manager）として動作します。
 
 ```python
 from mizu_common import DiscordClient, DiscordEmbed
 
-client = DiscordClient(webhook_url="https://discord.com/api/webhooks/...")
 
-# テキストメッセージを送信
-client.send_message("処理が完了しました")
+async def main() -> None:
+    async with DiscordClient(
+        webhook_url="https://discord.com/api/webhooks/...",
+    ) as client:
+        # テキストメッセージを送信
+        await client.send_message("処理が完了しました")
 
-# Embedメッセージを送信
-embed = DiscordEmbed(
-    title="バックアップ完了",
-    description="データのバックアップが正常に完了しました",
-    color=0x00FF00,  # 緑色
-)
-client.send_embed(embed)
+        # Embedメッセージを送信
+        embed = DiscordEmbed(
+            title="バックアップ完了",
+            description="データのバックアップが正常に完了しました",
+            color=0x00FF00,  # 緑色
+        )
+        await client.send_embed(embed)
 ```
 
-- `__init__(webhook_url: str)` - Webhook URLでクライアントを初期化
-- `send_message(content, username=None, avatar_url=None) -> None` - テキストメッセージを送信
+- `__init__(webhook_url: str, timeout: float = 30, retry_config: RetryConfig | None = None)` - Webhook URLでクライアントを初期化
+- `async __aenter__() -> Self` / `async __aexit__()` - async context manager
+- `async send_message(content, username=None, avatar_url=None) -> None` - テキストメッセージを送信
   - 2000文字を超えるメッセージは自動的に行単位で分割して複数回送信する
   - 分割送信中に失敗した場合、その時点で `DiscordWebhookError` を送出する（送信済みチャンクは取り消せない）
   - 失敗時 `DiscordWebhookError` を送出
-- `send_embed(embed, username=None, avatar_url=None) -> None` - Embedメッセージを送信
+- `async send_embed(embed, username=None, avatar_url=None) -> None` - Embedメッセージを送信
   - 失敗時 `DiscordWebhookError` を送出
-- `send_embeds(embeds, username=None, avatar_url=None) -> None` - 複数のEmbedを送信
+- `async send_embeds(embeds, username=None, avatar_url=None) -> None` - 複数のEmbedを送信
   - Embed数が10を超える場合 `ValueError` を送出
   - 失敗時 `DiscordWebhookError` を送出
 
@@ -570,18 +574,21 @@ logger.info("情報メッセージ")
 ```python
 from mizu_common import DiscordClient, DiscordEmbed
 
-client = DiscordClient(webhook_url="https://discord.com/api/webhooks/...")
 
-# テキストメッセージ
-client.send_message("処理が完了しました", username="通知ボット")
+async def main() -> None:
+    async with DiscordClient(
+        webhook_url="https://discord.com/api/webhooks/...",
+    ) as client:
+        # テキストメッセージ
+        await client.send_message("処理が完了しました", username="通知ボット")
 
-# Embedメッセージ
-embed = DiscordEmbed(
-    title="バックアップ完了",
-    description="データのバックアップが正常に完了しました",
-    color=0x00FF00,
-)
-client.send_embed(embed)
+        # Embedメッセージ
+        embed = DiscordEmbed(
+            title="バックアップ完了",
+            description="データのバックアップが正常に完了しました",
+            color=0x00FF00,
+        )
+        await client.send_embed(embed)
 ```
 
 ---
