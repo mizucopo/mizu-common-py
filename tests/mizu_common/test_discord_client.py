@@ -797,3 +797,39 @@ async def test_send_message_logs_chunk_progress(caplog: Any) -> None:
     assert any("チャンク 1/" in msg and "送信完了" in msg for msg in info_messages)
     assert any("チャンク 2/" in msg and "送信開始" in msg for msg in info_messages)
     assert any("チャンク 2/" in msg and "送信完了" in msg for msg in info_messages)
+
+
+async def test_send_message_does_not_log_chunk_progress_for_single_chunk(
+    caplog: Any,
+) -> None:
+    """単一チャンク送信時にチャンク進捗ログが出力されないこと.
+
+    Arrange:
+        短いメッセージを用意する。
+        成功レスポンスを返すMockTransportを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        チャンク進捗ログがINFOレベルで出力されないこと。
+    """
+
+    # Arrange
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+
+    # Act
+    with caplog.at_level(logging.INFO, logger="mizu_common.discord_client"):
+        async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+            await client.send_message("Hello!")
+
+    # Assert
+    chunk_messages = [
+        r.message
+        for r in caplog.records
+        if r.levelno == logging.INFO and "チャンク" in r.message
+    ]
+    assert chunk_messages == []

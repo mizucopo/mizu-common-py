@@ -336,7 +336,7 @@ GoogleScope.DRIVE_FILE        # "https://www.googleapis.com/auth/drive.file"
 | `YouTubeNetworkError` | ネットワーク/タイムアウトエラー | - |
 | `StaleLockError` | ロックファイルが `stale_hours` 時間より古い | - |
 | `AlreadyRunningError` | 他のプロセスがロックを保持 | `lock_path: Path \| None` |
-| `DiscordWebhookError` | Discord Webhookへのリクエストが失敗 | - |
+| `DiscordWebhookError` | Discord Webhookへのリクエストが失敗 | `status_code: int \| None` |
 
 ---
 
@@ -411,10 +411,11 @@ retry = AsyncRetryable(
 result = await retry.execute(lambda: fetch_data())
 ```
 
-- `__init__(config: RetryConfig, transient_exceptions: tuple[type[Exception], ...] = ())`
+- `__init__(config: RetryConfig, transient_exceptions: tuple[type[Exception], ...] = (), should_retry_exception: Callable[[Exception], bool] | None = None)`
 - `async execute(fn: Callable[[], Awaitable[T]]) -> T` — 関数を実行し、一時的例外時はリトライ
   - `transient_exceptions` に含まれない例外はリトライせず即座に送出
   - `transient_exceptions=()` の場合は例外を捕捉せず即座に送出
+  - `should_retry_exception` が指定された場合、`transient_exceptions` に一致し、かつ判定関数が `True` を返した例外だけをリトライする
   - 全試行失敗時は最後の例外を送出
 
 ---

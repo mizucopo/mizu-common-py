@@ -95,10 +95,12 @@ class DiscordClient:
         chunks = self._split_message(content)
         total = len(chunks)
         for i, chunk in enumerate(chunks, start=1):
-            logger.info("チャンク %d/%d 送信開始", i, total)
+            if total > 1:
+                logger.info("チャンク %d/%d 送信開始", i, total)
             payload = self._build_payload({"content": chunk}, username, avatar_url)
             await self._send_request_with_retry(payload)
-            logger.info("チャンク %d/%d 送信完了", i, total)
+            if total > 1:
+                logger.info("チャンク %d/%d 送信完了", i, total)
 
     async def send_embed(
         self,
