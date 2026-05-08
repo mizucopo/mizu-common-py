@@ -60,6 +60,7 @@ class DiscordClient:
         self._client = httpx.AsyncClient(
             timeout=self._timeout,
             transport=self._transport,
+            follow_redirects=True,
         )
         return self
 
