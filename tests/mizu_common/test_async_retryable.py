@@ -278,3 +278,86 @@ def test_execute_sleeps_between_retries(mocker: Any) -> None:
     # Assert
     assert result == "done"
     mock_sleep.assert_called_once_with(5.0)
+
+
+def test_execute_skips_retry_when_predicate_returns_false(
+    mocker: Any,
+) -> None:
+    """should_retry_exceptionがFalseを返した場合、リトライされず即座に送出されること.
+
+    Arrange:
+        should_retry_exceptionを指定する。
+        一時的エラーを発生させる関数を用意する。
+
+    Act:
+        execute()を実行する。
+
+    Assert:
+        例外が即座に送出されること。
+        関数が1回だけ呼び出されること。
+        asyncio.sleepが呼び出されないこと。
+    """
+    # Arrange
+    mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
+    call_count = 0
+
+    async def _fail() -> None:
+        nonlocal call_count
+        call_count += 1
+        raise _TransientError("skip me")
+
+    retry = AsyncRetryable(
+        config=RetryConfig(count=3, interval=5.0),
+        transient_exceptions=(_TransientError,),
+        should_retry_exception=lambda _: False,
+    )
+
+    # Act
+    with pytest.raises(_TransientError, match="skip me"):
+        asyncio.run(retry.execute(_fail))
+
+    # Assert
+    assert call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_execute_retries_when_predicate_returns_true(
+    mocker: Any,
+) -> None:
+    """should_retry_exceptionがTrueを返した場合、リトライされること.
+
+    Arrange:
+        should_retry_exceptionを指定する。
+        1回目は失敗、2回目は成功する関数を用意する。
+
+    Act:
+        execute()を実行する。
+
+    Assert:
+        結果が返されること。
+        関数が2回呼び出されること。
+    """
+    # Arrange
+    mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
+    call_count = 0
+
+    async def _flaky() -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise _TransientError("retry me")
+        return "ok"
+
+    retry = AsyncRetryable(
+        config=RetryConfig(count=2, interval=5.0),
+        transient_exceptions=(_TransientError,),
+        should_retry_exception=lambda _: True,
+    )
+
+    # Act
+    result = asyncio.run(retry.execute(_flaky))
+
+    # Assert
+    assert result == "ok"
+    assert call_count == 2
+    mock_sleep.assert_called_once_with(5.0)

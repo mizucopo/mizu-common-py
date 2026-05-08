@@ -18,15 +18,19 @@ class AsyncRetryable:
     Args:
         config: リトライ設定。
         transient_exceptions: リトライ対象の一時的例外のタプル。
+        should_retry_exception: 例外インスタンスを受け取りリトライ可否を返す判定関数。
+            Noneの場合はtransient_exceptionsに一致した例外をすべてリトライする。
     """
 
     def __init__(
         self,
         config: RetryConfig,
         transient_exceptions: tuple[type[Exception], ...] = (),
+        should_retry_exception: Callable[[Exception], bool] | None = None,
     ) -> None:
         self._config = config
         self._transient_exceptions = transient_exceptions
+        self._should_retry_exception = should_retry_exception
 
     async def execute(self, fn: Callable[[], Awaitable[T]]) -> T:
         """関数を実行し、一時的例外時はリトライする.
@@ -47,6 +51,11 @@ class AsyncRetryable:
                 return await fn()
             except self._transient_exceptions as e:
                 last_error = e
+                if (
+                    self._should_retry_exception is not None
+                    and not self._should_retry_exception(e)
+                ):
+                    raise
                 if attempt < self._config.count:
                     logger.info(
                         "試行 %d/%d 失敗、%s秒後にリトライ: %s",
