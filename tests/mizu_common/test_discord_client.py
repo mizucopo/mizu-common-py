@@ -1,55 +1,62 @@
 """Discord Webhook通知クライアントのテスト."""
 
+import json
+import logging
 from typing import Any
 
+import httpx
 import pytest
 
 from mizu_common.discord_client import DiscordClient
 from mizu_common.exceptions.discord_webhook_error import DiscordWebhookError
 from mizu_common.models.discord_embed import DiscordEmbed
-from tests.fakes.fake_http_transport import FakeHttpTransport
+from mizu_common.retry_config import RetryConfig
 
 TEST_WEBHOOK_URL = "https://discord.com/api/webhooks/123/abc"
 
+pytestmark = pytest.mark.asyncio
 
-def test_send_message_sends_text_message_successfully(
-    mocker: Any,
-) -> None:
+
+async def test_send_message_sends_text_message_successfully() -> None:
     """send_messageでテキストメッセージが正常に送信されること.
 
     Arrange:
-        Webhook URLを用意する。
-        成功レスポンスを設定する。
+        MockTransportを設定する。
+        成功レスポンスを返す。
 
     Act:
         send_message()を実行する。
 
     Assert:
-        メッセージが送信されること。
+        リクエストが送信されること。
         ペイロードに正しい内容が含まれること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
 
     # Act
-    client.send_message("Hello, Discord!")
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message("Hello, Discord!")
 
     # Assert
-    assert transport.request_count == 1
-    assert transport.last_request.url == TEST_WEBHOOK_URL
-    assert transport.last_request.json == {"content": "Hello, Discord!"}
+    assert len(captured) == 1
+    assert str(captured[0].url) == TEST_WEBHOOK_URL
+    body = json.loads(captured[0].content)
+    assert body == {"content": "Hello, Discord!"}
 
 
-def test_send_message_with_username_and_avatar(
-    mocker: Any,
-) -> None:
+async def test_send_message_with_username_and_avatar() -> None:
     """send_messageでユーザー名とアバターが含めて送信されること.
 
     Arrange:
-        Webhook URLを用意する。
-        成功レスポンスを設定する。
+        MockTransportを設定する。
+        成功レスポンスを返す。
 
     Act:
         ユーザー名とアバターURLを指定してsend_message()を実行する。
@@ -58,58 +65,385 @@ def test_send_message_with_username_and_avatar(
         ペイロードにusernameとavatar_urlが含まれること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
 
     # Act
-    client.send_message(
-        "Hello!",
-        username="Bot",
-        avatar_url="https://example.com/avatar.png",
-    )
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(
+            "Hello!",
+            username="Bot",
+            avatar_url="https://example.com/avatar.png",
+        )
 
     # Assert
-    assert transport.request_count == 1
-    assert transport.last_request.json == {
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    assert body == {
         "content": "Hello!",
         "username": "Bot",
         "avatar_url": "https://example.com/avatar.png",
     }
 
 
-def test_send_message_raises_error_on_failure(
-    mocker: Any,
-) -> None:
+async def test_send_message_raises_error_on_failure() -> None:
     """send_messageの失敗時にDiscordWebhookErrorが発生されること.
 
     Arrange:
-        エラーレスポンスを設定する。
+        404エラーレスポンスを返すMockTransportを設定する。
 
     Act:
         send_message()を実行する。
 
     Assert:
         DiscordWebhookErrorが発生すること。
+        status_codeに404が設定されること。
+    """
+
+    # Arrange
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code=404, text="Unknown Webhook")
+
+    transport = httpx.MockTransport(handler)
+
+    # Act & Assert
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        with pytest.raises(
+            DiscordWebhookError,
+            match="Discord通知の送信に失敗しました",
+        ) as exc_info:
+            await client.send_message("Hello!")
+    assert exc_info.value.status_code == 404
+
+
+async def test_send_message_raises_runtime_error_outside_context() -> None:
+    """async withブロック外でsend_messageを呼び出した場合にRuntimeErrorが発生すること.
+
+    Arrange:
+        DiscordClientを生成する（async withに入らない）。
+
+    Act & Assert:
+        send_message()を実行するとRuntimeErrorが発生すること。
     """
     # Arrange
-    transport = FakeHttpTransport(status_code=404, text="Unknown Webhook")
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
     client = DiscordClient(TEST_WEBHOOK_URL)
 
     # Act & Assert
-    with pytest.raises(DiscordWebhookError, match="Discord通知の送信に失敗しました"):
-        client.send_message("Hello!")
+    with pytest.raises(RuntimeError, match="async with"):
+        await client.send_message("Hello!")
 
 
-def test_send_embed_sends_embed_message_successfully(
-    mocker: Any,
-) -> None:
+def _make_long_message(lines: int, line_length: int = 50) -> str:
+    """指定行数・行長のメッセージを生成する."""
+    line = "a" * line_length
+    return "\n".join([line] * lines)
+
+
+# --- Task 5: チャンク分割テスト ---
+
+
+async def test_send_message_sends_long_message_in_multiple_chunks() -> None:
+    """2000文字を超えるメッセージが複数チャンクに分割送信されること.
+
+    Arrange:
+        2000文字を超えるメッセージを用意する。
+        成功レスポンスを返すMockTransportを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        複数回POSTされること。
+        全チャンクが2000文字以下であること。
+        チャンクを改行で結合すると元のメッセージに戻ること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    message = _make_long_message(lines=100, line_length=50)
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(message)
+
+    # Assert
+    assert len(captured) > 1
+    chunks: list[str] = []
+    for req in captured:
+        body = json.loads(req.content)
+        content = body["content"]
+        assert isinstance(content, str)
+        chunks.append(content)
+    for chunk in chunks:
+        assert len(chunk) <= DiscordClient.MAX_MESSAGE_LENGTH
+    assert "\n".join(chunks) == message
+
+
+async def test_send_message_sends_message_at_max_length_as_single_request() -> None:
+    """2000文字ちょうどのメッセージが1回のPOSTで送信されること.
+
+    Arrange:
+        2000文字ちょうどのメッセージを用意する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        1回だけPOSTされること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    message = "a" * 2000
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(message)
+
+    # Assert
+    assert len(captured) == 1
+
+
+async def test_send_message_truncates_long_line() -> None:
+    """1行が2000文字を超える場合に切り捨てられること.
+
+    Arrange:
+        2000文字を超える1行を含むメッセージを用意する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        送信されるチャンクの長さが2000文字以下であること。
+        チャンクに切り捨て通知が含まれること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    long_line = "a" * 3000
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(long_line)
+
+    # Assert
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    content = body["content"]
+    assert isinstance(content, str)
+    assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
+    assert "... (切り捨てられました)" in content
+
+
+async def test_send_message_inherits_username_and_avatar_across_chunks() -> None:
+    """分割送信時にusernameとavatar_urlが全チャンクに含まれること.
+
+    Arrange:
+        2000文字を超えるメッセージを用意する。
+
+    Act:
+        usernameとavatar_urlを指定してsend_message()を実行する。
+
+    Assert:
+        全POSTのペイロードにusernameとavatar_urlが含まれること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    message = _make_long_message(lines=100, line_length=50)
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(
+            message,
+            username="Bot",
+            avatar_url="https://example.com/img.png",
+        )
+
+    # Assert
+    for req in captured:
+        body = json.loads(req.content)
+        assert body["username"] == "Bot"
+        assert body["avatar_url"] == "https://example.com/img.png"
+
+
+async def test_send_message_raises_error_during_split_send() -> None:
+    """分割送信中にPOSTが失敗した場合にDiscordWebhookErrorが発生されること.
+
+    Arrange:
+        2000文字を超えるメッセージを用意する。
+        1回目は成功、2回目は失敗するレスポンスを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        DiscordWebhookErrorが送出されること。
+        status_codeに500が設定されること。
+    """
+    # Arrange
+    responses = [
+        httpx.Response(204),
+        httpx.Response(500, text="Server Error"),
+    ]
+    iter_responses = iter(responses)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return next(iter_responses)
+
+    transport = httpx.MockTransport(handler)
+    message = _make_long_message(lines=100, line_length=50)
+
+    # Act & Assert
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        with pytest.raises(
+            DiscordWebhookError,
+            match="Discord通知の送信に失敗しました",
+        ) as exc_info:
+            await client.send_message(message)
+    assert exc_info.value.status_code == 500
+
+
+async def test_send_message_does_not_send_empty_chunk_for_trailing_newline() -> None:
+    """末尾改行だけの空チャンクが送信されないこと.
+
+    Arrange:
+        2000文字ちょうどの行と末尾改行を含むメッセージを用意する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        空文字列チャンクが送信されないこと。
+        送信チャンクが2000文字以下であること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    message = ("a" * 2000) + "\n"
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(message)
+
+    # Assert
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    content = body["content"]
+    assert isinstance(content, str)
+    assert content != ""
+    assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
+
+
+async def test_send_message_empty_string_sends_single_request() -> None:
+    """空文字列のメッセージが1回のPOSTで送信されること.
+
+    Arrange:
+        空文字列のメッセージを用意する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        1回だけPOSTされること。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message("")
+
+    # Assert
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    assert body == {"content": ""}
+
+
+async def test_send_message_sends_newline_only_long_message_in_chunks() -> None:
+    """改行のみの2000文字超メッセージが分割送信されること.
+
+    Arrange:
+        改行のみで2000文字を超えるメッセージを用意する。
+        成功レスポンスを返すMockTransportを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        1回以上POSTされること。
+        全チャンクが2000文字以下であること。
+        空文字列チャンクが含まれないこと。
+    """
+    # Arrange
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    message = "\n" * 2001
+
+    # Act
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_message(message)
+
+    # Assert
+    assert len(captured) >= 1
+    for req in captured:
+        body = json.loads(req.content)
+        content = body["content"]
+        assert isinstance(content, str)
+        assert content != ""
+        assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
+
+
+# --- Task 6: send_embed / send_embeds テスト ---
+
+
+async def test_send_embed_sends_embed_message_successfully() -> None:
     """send_embedでEmbedメッセージが正常に送信されること.
 
     Arrange:
-        Webhook URLを用意する。
-        成功レスポンスを設定する。
+        MockTransportを設定する。
+        成功レスポンスを返す。
         Embedを用意する。
 
     Act:
@@ -120,9 +454,13 @@ def test_send_embed_sends_embed_message_successfully(
         ペイロードにembedsが含まれること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
     embed = DiscordEmbed(
         title="Test Title",
         description="Test Description",
@@ -131,11 +469,13 @@ def test_send_embed_sends_embed_message_successfully(
     )
 
     # Act
-    client.send_embed(embed)
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_embed(embed)
 
     # Assert
-    assert transport.request_count == 1
-    assert transport.last_request.json == {
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    assert body == {
         "embeds": [
             {
                 "title": "Test Title",
@@ -147,14 +487,11 @@ def test_send_embed_sends_embed_message_successfully(
     }
 
 
-def test_send_embeds_with_multiple_embeds(
-    mocker: Any,
-) -> None:
+async def test_send_embeds_with_multiple_embeds() -> None:
     """send_embedsで複数のEmbedが送信されること.
 
     Arrange:
-        Webhook URLを用意する。
-        成功レスポンスを設定する。
+        MockTransportを設定する。
         複数のEmbedを用意する。
 
     Act:
@@ -164,23 +501,29 @@ def test_send_embeds_with_multiple_embeds(
         ペイロードに複数のembedsが含まれること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
     embeds = [
         DiscordEmbed(title="First"),
         DiscordEmbed(title="Second"),
     ]
 
     # Act
-    client.send_embeds(embeds)
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        await client.send_embeds(embeds)
 
     # Assert
-    assert transport.request_count == 1
-    assert len(transport.last_request.json["embeds"]) == 2  # type: ignore[arg-type, index]
+    assert len(captured) == 1
+    body = json.loads(captured[0].content)
+    assert len(body["embeds"]) == 2
 
 
-def test_send_embeds_raises_error_when_exceeds_limit() -> None:
+async def test_send_embeds_raises_error_when_exceeds_limit() -> None:
     """send_embedsでEmbed数11以上の場合にValueErrorが発生されること.
 
     Arrange:
@@ -195,271 +538,298 @@ def test_send_embeds_raises_error_when_exceeds_limit() -> None:
 
     # Act & Assert
     with pytest.raises(ValueError, match="Embed数は最大10件までです"):
-        client.send_embeds(embeds)
+        await client.send_embeds(embeds)
 
 
-def _make_long_message(lines: int, line_length: int = 50) -> str:
-    """指定行数・行長のメッセージを生成する."""
-    line = "a" * line_length
-    return "\n".join([line] * lines)
+# --- Task 7: エラーハンドリングテスト ---
 
 
-def test_send_message_sends_long_message_in_multiple_chunks(
-    mocker: Any,
-) -> None:
-    """2000文字を超えるメッセージが複数チャンクに分割送信されること.
+async def test_send_message_converts_connect_error_to_discord_webhook_error() -> None:
+    """httpx.ConnectErrorがDiscordWebhookErrorに変換されること.
 
     Arrange:
-        2000文字を超えるメッセージを用意する。
-        成功レスポンスを設定する。
+        ConnectErrorを発生させるMockTransportを設定する。
 
     Act:
         send_message()を実行する。
 
     Assert:
-        複数回POSTされること。
-        全チャンクが2000文字以下であること。
-        チャンクを改行で結合すると元のメッセージに戻ること。
+        DiscordWebhookErrorが発生すること。
+        status_codeがNoneであること。
     """
+
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    message = _make_long_message(lines=100, line_length=50)
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("Connection refused")
 
-    # Act
-    client.send_message(message)
+    transport = httpx.MockTransport(handler)
 
-    # Assert
-    assert transport.request_count > 1
-    chunks: list[str] = []
-    for req in transport.requests:
-        assert req.json is not None
-        content = req.json["content"]
-        assert isinstance(content, str)
-        chunks.append(content)
-    for chunk in chunks:
-        assert len(chunk) <= DiscordClient.MAX_MESSAGE_LENGTH
-    assert "\n".join(chunks) == message
+    # Act & Assert
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        with pytest.raises(
+            DiscordWebhookError,
+            match="Discord通知の送信に失敗しました",
+        ) as exc_info:
+            await client.send_message("Hello!")
+    assert exc_info.value.status_code is None
 
 
-def test_send_message_sends_message_at_max_length_as_single_request(
-    mocker: Any,
-) -> None:
-    """2000文字ちょうどのメッセージが1回のPOSTで送信されること.
+async def test_send_message_converts_timeout_error_to_discord_webhook_error() -> None:
+    """httpx.TimeoutExceptionがDiscordWebhookErrorに変換されること.
 
     Arrange:
-        2000文字ちょうどのメッセージを用意する。
+        TimeoutExceptionを発生させるMockTransportを設定する。
 
     Act:
         send_message()を実行する。
 
     Assert:
-        1回だけPOSTされること。
+        DiscordWebhookErrorが発生すること。
+        status_codeがNoneであること。
     """
+
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    message = "a" * 2000
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.TimeoutException("Request timed out")
 
-    # Act
-    client.send_message(message)
+    transport = httpx.MockTransport(handler)
 
-    # Assert
-    assert transport.request_count == 1
+    # Act & Assert
+    async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+        with pytest.raises(
+            DiscordWebhookError,
+            match="Discord通知の送信に失敗しました",
+        ) as exc_info:
+            await client.send_message("Hello!")
+    assert exc_info.value.status_code is None
 
 
-def test_send_message_truncates_long_line(mocker: Any) -> None:
-    """1行が2000文字を超える場合に切り捨てられること.
+# --- Task 8: リトライテスト ---
+
+
+async def test_send_message_retries_on_5xx_error(mocker: Any) -> None:
+    """5xxエラー時にリトライされること.
 
     Arrange:
-        2000文字を超える1行を含むメッセージを用意する。
+        1回目は500エラー、2回目は成功するMockTransportを設定する。
+        retry_configを指定する。
+        asyncio.sleepをモックする。
 
     Act:
         send_message()を実行する。
 
     Assert:
-        送信されるチャンクの長さが2000文字以下であること。
-        チャンクに切り捨て通知が含まれること。
+        最終的に成功すること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    long_line = "a" * 3000
+    mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
+    call_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return httpx.Response(status_code=500, text="Server Error")
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    retry_config = RetryConfig(count=2, interval=1.0)
 
     # Act
-    client.send_message(long_line)
+    async with DiscordClient(
+        TEST_WEBHOOK_URL, transport=transport, retry_config=retry_config
+    ) as client:
+        await client.send_message("Hello!")
 
     # Assert
-    assert transport.request_count == 1
-    payload = transport.last_request.json
-    assert payload is not None
-    content = payload["content"]
-    assert isinstance(content, str)
-    assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
-    assert "... (切り捨てられました)" in content
+    assert call_count == 2
+    mock_sleep.assert_called_once_with(1.0)
 
 
-def test_send_message_inherits_username_and_avatar_across_chunks(
-    mocker: Any,
-) -> None:
-    """分割送信時にusernameとavatar_urlが全チャンクに含まれること.
+async def test_send_message_does_not_retry_on_4xx_error() -> None:
+    """4xxエラー時はリトライされず即座にDiscordWebhookErrorが送出されること.
 
     Arrange:
-        2000文字を超えるメッセージを用意する。
+        404エラーを返すMockTransportを設定する。
+        retry_configを指定する。
 
     Act:
-        usernameとavatar_urlを指定してsend_message()を実行する。
+        send_message()を実行する。
 
     Assert:
-        全POSTのペイロードにusernameとavatar_urlが含まれること。
+        DiscordWebhookErrorが即座に送出されること。
+        status_codeに404が設定されること。
     """
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    message = _make_long_message(lines=100, line_length=50)
+    call_count = 0
 
-    # Act
-    client.send_message(
-        message,
-        username="Bot",
-        avatar_url="https://example.com/img.png",
-    )
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        return httpx.Response(status_code=404, text="Unknown Webhook")
 
-    # Assert
-    for req in transport.requests:
-        payload = req.json
-        assert payload is not None
-        assert payload["username"] == "Bot"
-        assert payload["avatar_url"] == "https://example.com/img.png"
+    transport = httpx.MockTransport(handler)
+    retry_config = RetryConfig(count=3, interval=1.0)
+
+    # Act & Assert
+    async with DiscordClient(
+        TEST_WEBHOOK_URL, transport=transport, retry_config=retry_config
+    ) as client:
+        with pytest.raises(DiscordWebhookError) as exc_info:
+            await client.send_message("Hello!")
+    assert exc_info.value.status_code == 404
+    assert call_count == 1
 
 
-def test_send_message_raises_error_during_split_send(
-    mocker: Any,
-) -> None:
-    """分割送信中にPOSTが失敗した場合にDiscordWebhookErrorが発生されること.
+async def test_send_message_retries_on_connect_error(mocker: Any) -> None:
+    """接続エラー時にリトライされること.
 
     Arrange:
-        2000文字を超えるメッセージを用意する。
-        1回目は成功、2回目は失敗するレスポンスを設定する。
+        1回目はConnectError、2回目は成功するMockTransportを設定する。
+        retry_configを指定する。
+        asyncio.sleepをモックする。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        最終的に成功すること。
+    """
+    # Arrange
+    mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
+    call_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise httpx.ConnectError("Connection refused")
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
+    retry_config = RetryConfig(count=2, interval=1.0)
+
+    # Act
+    async with DiscordClient(
+        TEST_WEBHOOK_URL, transport=transport, retry_config=retry_config
+    ) as client:
+        await client.send_message("Hello!")
+
+    # Assert
+    assert call_count == 2
+    mock_sleep.assert_called_once_with(1.0)
+
+
+async def test_send_message_raises_after_all_retries_exhausted(
+    mocker: Any,
+) -> None:
+    """全リトライ失敗後にDiscordWebhookErrorが送出されること.
+
+    Arrange:
+        常に500エラーを返すMockTransportを設定する。
+        retry_config（count=2）を指定する。
 
     Act:
         send_message()を実行する。
 
     Assert:
         DiscordWebhookErrorが送出されること。
-        1回目のPOSTは成功していること。
+        status_codeに500が設定されること。
     """
     # Arrange
-    transport = FakeHttpTransport(responses=[(204, ""), (500, "Server Error")])
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
+    mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
+    call_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        return httpx.Response(status_code=500, text="Server Error")
+
+    transport = httpx.MockTransport(handler)
+    retry_config = RetryConfig(count=2, interval=1.0)
+
+    # Act & Assert
+    async with DiscordClient(
+        TEST_WEBHOOK_URL, transport=transport, retry_config=retry_config
+    ) as client:
+        with pytest.raises(
+            DiscordWebhookError,
+            match="Discord通知の送信に失敗しました",
+        ) as exc_info:
+            await client.send_message("Hello!")
+    assert exc_info.value.status_code == 500
+    assert call_count == 3  # 初回 + 2リトライ
+    assert mock_sleep.call_count == 2
+
+
+# --- Task 9: ログテスト ---
+
+
+async def test_send_message_logs_chunk_progress(caplog: Any) -> None:
+    """チャンク分割送信時にINFOログが出力されること.
+
+    Arrange:
+        2000文字を超えるメッセージを用意する。
+        成功レスポンスを返すMockTransportを設定する。
+
+    Act:
+        send_message()を実行する。
+
+    Assert:
+        チャンク送信開始・完了のログがINFOレベルで出力されること。
+    """
+
+    # Arrange
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
     message = _make_long_message(lines=100, line_length=50)
 
     # Act
-    with pytest.raises(DiscordWebhookError, match="Discord通知の送信に失敗しました"):
-        client.send_message(message)
+    with caplog.at_level(logging.INFO, logger="mizu_common.discord_client"):
+        async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+            await client.send_message(message)
 
     # Assert
-    assert transport.request_count >= 2
+    info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
+    assert any("チャンク 1/" in msg and "送信開始" in msg for msg in info_messages)
+    assert any("チャンク 1/" in msg and "送信完了" in msg for msg in info_messages)
+    assert any("チャンク 2/" in msg and "送信開始" in msg for msg in info_messages)
+    assert any("チャンク 2/" in msg and "送信完了" in msg for msg in info_messages)
 
 
-def test_send_message_does_not_send_empty_chunk_for_trailing_newline(
-    mocker: Any,
+async def test_send_message_does_not_log_chunk_progress_for_single_chunk(
+    caplog: Any,
 ) -> None:
-    """末尾改行だけの空チャンクが送信されないこと.
+    """単一チャンク送信時にチャンク進捗ログが出力されないこと.
 
     Arrange:
-        2000文字ちょうどの行と末尾改行を含むメッセージを用意する。
+        短いメッセージを用意する。
+        成功レスポンスを返すMockTransportを設定する。
 
     Act:
         send_message()を実行する。
 
     Assert:
-        空文字列チャンクが送信されないこと。
-        送信チャンクが2000文字以下であること。
+        チャンク進捗ログがINFOレベルで出力されないこと。
     """
+
     # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    message = ("a" * 2000) + "\n"
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code=204)
+
+    transport = httpx.MockTransport(handler)
 
     # Act
-    client.send_message(message)
+    with caplog.at_level(logging.INFO, logger="mizu_common.discord_client"):
+        async with DiscordClient(TEST_WEBHOOK_URL, transport=transport) as client:
+            await client.send_message("Hello!")
 
     # Assert
-    assert transport.request_count == 1
-    payload = transport.last_request.json
-    assert payload is not None
-    content = payload["content"]
-    assert isinstance(content, str)
-    assert content != ""
-    assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
-
-
-def test_send_message_empty_string_sends_single_request(
-    mocker: Any,
-) -> None:
-    """空文字列のメッセージが1回のPOSTで送信されること.
-
-    Arrange:
-        空文字列のメッセージを用意する。
-
-    Act:
-        send_message()を実行する。
-
-    Assert:
-        1回だけPOSTされること。
-    """
-    # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-
-    # Act
-    client.send_message("")
-
-    # Assert
-    assert transport.request_count == 1
-    assert transport.last_request.json == {"content": ""}
-
-
-def test_send_message_sends_newline_only_long_message_in_chunks(
-    mocker: Any,
-) -> None:
-    """改行のみの2000文字超メッセージが分割送信されること.
-
-    Arrange:
-        改行のみで2000文字を超えるメッセージを用意する。
-        成功レスポンスを設定する。
-
-    Act:
-        send_message()を実行する。
-
-    Assert:
-        1回以上POSTされること。
-        全チャンクが2000文字以下であること。
-        空文字列チャンクが含まれないこと。
-    """
-    # Arrange
-    transport = FakeHttpTransport()
-    mocker.patch("mizu_common.discord_client.requests.post", transport.post)
-    client = DiscordClient(TEST_WEBHOOK_URL)
-    message = "\n" * 2001
-
-    # Act
-    client.send_message(message)
-
-    # Assert
-    assert transport.request_count >= 1
-    for req in transport.requests:
-        payload = req.json
-        assert payload is not None
-        content = payload["content"]
-        assert isinstance(content, str)
-        assert content != ""
-        assert len(content) <= DiscordClient.MAX_MESSAGE_LENGTH
+    chunk_messages = [
+        r.message
+        for r in caplog.records
+        if r.levelno == logging.INFO and "チャンク" in r.message
+    ]
+    assert chunk_messages == []
