@@ -104,8 +104,9 @@ async def test_send_message_raises_error_on_failure() -> None:
         DiscordWebhookErrorが発生すること。
         status_codeに404が設定されること。
     """
+
     # Arrange
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code=404, text="Unknown Webhook")
 
     transport = httpx.MockTransport(handler)
@@ -312,7 +313,7 @@ async def test_send_message_raises_error_during_split_send() -> None:
     ]
     iter_responses = iter(responses)
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         return next(iter_responses)
 
     transport = httpx.MockTransport(handler)
@@ -556,8 +557,9 @@ async def test_send_message_converts_connect_error_to_discord_webhook_error() ->
         DiscordWebhookErrorが発生すること。
         status_codeがNoneであること。
     """
+
     # Arrange
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("Connection refused")
 
     transport = httpx.MockTransport(handler)
@@ -585,8 +587,9 @@ async def test_send_message_converts_timeout_error_to_discord_webhook_error() ->
         DiscordWebhookErrorが発生すること。
         status_codeがNoneであること。
     """
+
     # Arrange
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("Request timed out")
 
     transport = httpx.MockTransport(handler)
@@ -622,7 +625,7 @@ async def test_send_message_retries_on_5xx_error(mocker: Any) -> None:
     mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
     call_count = 0
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -660,7 +663,7 @@ async def test_send_message_does_not_retry_on_4xx_error() -> None:
     # Arrange
     call_count = 0
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
         return httpx.Response(status_code=404, text="Unknown Webhook")
@@ -696,7 +699,7 @@ async def test_send_message_retries_on_connect_error(mocker: Any) -> None:
     mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
     call_count = 0
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -737,7 +740,7 @@ async def test_send_message_raises_after_all_retries_exhausted(
     mock_sleep = mocker.patch("mizu_common.async_retryable.asyncio.sleep")
     call_count = 0
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
         return httpx.Response(status_code=500, text="Server Error")
@@ -775,8 +778,9 @@ async def test_send_message_logs_chunk_progress(caplog: Any) -> None:
     Assert:
         チャンク送信開始・完了のログがINFOレベルで出力されること。
     """
+
     # Arrange
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code=204)
 
     transport = httpx.MockTransport(handler)

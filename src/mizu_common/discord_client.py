@@ -155,9 +155,7 @@ class DiscordClient:
             RuntimeError: async withブロック外で呼び出された場合
         """
         if self._client is None:
-            raise RuntimeError(
-                "DiscordClientはasync withブロック内で使用してください"
-            )
+            raise RuntimeError("DiscordClientはasync withブロック内で使用してください")
         return self._client
 
     async def _send_request(self, payload: dict[str, Any]) -> None:
@@ -189,14 +187,10 @@ class DiscordClient:
                 status_code=response.status_code,
             )
 
-    async def _send_request_with_retry(
-        self, payload: dict[str, Any]
-    ) -> None:
+    async def _send_request_with_retry(self, payload: dict[str, Any]) -> None:
         """リトライ設定に応じてリクエストを送信する."""
         if self._retryable:
-            await self._retryable.execute(
-                lambda: self._send_request(payload)
-            )
+            await self._retryable.execute(lambda: self._send_request(payload))
         else:
             await self._send_request(payload)
 
