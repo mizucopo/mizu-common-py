@@ -4,8 +4,6 @@ from typing import Any
 
 from tests.fakes.upload_record import UploadRecord
 
-_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-
 
 class FakeCreateRequest:
     """files().create(body=...).execute() と .next_chunk() のfake。"""

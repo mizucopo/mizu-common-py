@@ -23,7 +23,7 @@ class _LockedFileOperations:
         """ファイル操作インスタンスを初期化する。
 
         Args:
-            provider: 親となる GoogleDriveProvider インスタンス
+            provider: 親となる Google Drive provider
         """
         self._provider = provider
 
