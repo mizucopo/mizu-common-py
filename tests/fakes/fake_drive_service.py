@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from tests.fakes.upload_record import UploadRecord
-
-if TYPE_CHECKING:
-    pass
 
 _FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 

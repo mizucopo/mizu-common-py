@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from tests.fakes.fake_create_request import FakeCreateRequest
 from tests.fakes.fake_list_request import FakeListRequest
 from tests.fakes.fake_update_request import FakeUpdateRequest
-
-if TYPE_CHECKING:
-    pass
 
 
 class FakeFilesResource:

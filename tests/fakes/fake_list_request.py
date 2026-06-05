@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 _FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 

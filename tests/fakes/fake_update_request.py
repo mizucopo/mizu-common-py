@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from tests.fakes.upload_record import UploadRecord
-
-if TYPE_CHECKING:
-    pass
 
 
 class FakeUpdateRequest:

@@ -1,12 +1,13 @@
 """Google Drive ファイル操作の内部モジュール。"""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from googleapiclient.http import MediaFileUpload
 
-if TYPE_CHECKING:
-    from mizu_common.google_drive.provider import GoogleDriveProvider
+from mizu_common.google_drive._locked_file_operations_provider import (
+    _LockedFileOperationsProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class _LockedFileOperations:
     ロックの外側からはアクセスできない設計。
     """
 
-    def __init__(self, provider: "GoogleDriveProvider") -> None:
+    def __init__(self, provider: _LockedFileOperationsProvider) -> None:
         """ファイル操作インスタンスを初期化する。
 
         Args:
@@ -126,7 +127,7 @@ class _LockedFileOperations:
         file_metadata = {"name": actual_filename, "parents": [parent_folder_id]}
 
         request = self._provider.service.files().create(
-            body=file_metadata,  # type: ignore[arg-type]
+            body=file_metadata,
             media_body=media,
             fields="id",
         )
