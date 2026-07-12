@@ -11,6 +11,7 @@ from googleapiclient.discovery import build
 
 from mizu_common.constants.google_scope import GoogleScope
 from mizu_common.google_drive._locked_file_operations import _LockedFileOperations
+from mizu_common.google_drive._retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ class GoogleDriveProvider:
             existing_file_id = ops.search_for_file(destination_filename)
 
             if existing_file_id:
-                ops.update_file(existing_file_id, source_path)
+                ops.update_file(existing_file_id, source_path, destination_filename)
             else:
                 ops.create_file(source_path, destination_filename)
 
@@ -202,10 +203,15 @@ class GoogleDriveProvider:
             f"trashed = false"
         )
         logger.debug(f"Searching for folder '{name}' in parent '{parent_id}'")
-        results = (
-            self.service.files()
-            .list(q=query, spaces="drive", fields="files(id)")
-            .execute()
+        results = execute_with_retry(
+            lambda: (
+                self.service.files()
+                .list(q=query, spaces="drive", fields="files(id)")
+                .execute()
+            ),
+            max_retries=self.MAX_RETRIES,
+            stage="folder_search",
+            target=name,
         )
         files = results.get("files", [])
         if files:
@@ -231,13 +237,18 @@ class GoogleDriveProvider:
             "parents": [parent_id],
             "mimeType": self.FOLDER_MIME_TYPE,
         }
-        result = (
-            self.service.files()
-            .create(
-                body=file_metadata,  # type: ignore[arg-type]
-                fields="id",
-            )
-            .execute()
+        result = execute_with_retry(
+            lambda: (
+                self.service.files()
+                .create(
+                    body=file_metadata,  # type: ignore[arg-type]
+                    fields="id",
+                )
+                .execute()
+            ),
+            max_retries=self.MAX_RETRIES,
+            stage="folder_create",
+            target=name,
         )
         folder_id = str(result.get("id"))
         logger.info(f"Created folder '{name}' (ID: {folder_id})")

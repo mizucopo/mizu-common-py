@@ -16,6 +16,7 @@ class FakeUpdateRequest:
         self._kwargs = kwargs
 
     def next_chunk(self, **_kwargs: object) -> tuple[None, dict[str, str]]:
+        self._service._consume_upload_error()
         file_id = self._kwargs.get("fileId", "")
 
         try:

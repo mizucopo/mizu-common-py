@@ -43,6 +43,7 @@ class FakeCreateRequest:
         return {"id": fid}
 
     def next_chunk(self, **_kwargs: object) -> tuple[None, dict[str, str]]:
+        self._service._consume_upload_error()
         body = self._kwargs.get("body", {})
         name = body.get("name", "")
         parent_id = body.get("parents", [""])[0] if body.get("parents") else ""

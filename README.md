@@ -75,6 +75,30 @@ uv run task test
 
 ## 使用例
 
+### Google Driveへのアップロード
+
+```python
+from mizu_common import GoogleDriveProvider
+
+provider = GoogleDriveProvider.from_credentials(
+    folder_id="Google Drive folder ID",
+    client_id="OAuth client ID",
+    client_secret="OAuth client secret",
+    refresh_token="OAuth refresh token",
+)
+provider.upload("backup.zip", "backups/backup.zip")
+```
+
+`GoogleDriveProvider` は、ファイルやフォルダの検索・作成と resumable upload
+で一時障害が発生した場合、ランダム化指数バックオフを挟んで最大5回再試行します。
+対象は HTTP 429、HTTP 500–599、timeout、接続の切断・中断・拒否、EPIPE、
+SSL および名前解決の一時障害です。その他の4xxやローカルファイルのエラーは
+再試行されません。
+
+再試行ログには、試行回数、待機秒数、処理段階、対象ファイルまたはフォルダ、
+HTTP status または例外種別が記録されます。resumable upload の通信が途切れた場合は、
+同じアップロードセッションの状態を確認して再開します。
+
 ### 非同期リトライ
 
 ```python

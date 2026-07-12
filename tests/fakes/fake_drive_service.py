@@ -26,6 +26,9 @@ class FakeDriveService:
         self.history: list[UploadRecord] = []
 
         self._list_errors: list[Exception] = []
+        self._upload_errors: list[Exception] = []
+        self._list_attempts = 0
+        self._upload_attempts = 0
 
         # 並行性追跡（アップロード用）
         self._upload_first_entered: threading.Event | None = None
@@ -77,6 +80,15 @@ class FakeDriveService:
     def inject_list_error(self, error: Exception) -> None:
         self._list_errors.append(error)
 
+    def inject_upload_error(self, error: Exception) -> None:
+        self._upload_errors.append(error)
+
+    def _consume_upload_error(self) -> None:
+        with self._state_lock:
+            self._upload_attempts += 1
+            if self._upload_errors:
+                raise self._upload_errors.pop(0)
+
     # --- 履歴プロパティ ---
 
     @property
@@ -101,6 +113,16 @@ class FakeDriveService:
     def max_concurrent_uploads(self) -> int:
         with self._upload_count_lock:
             return self._upload_max_concurrent
+
+    @property
+    def list_attempts(self) -> int:
+        with self._state_lock:
+            return self._list_attempts
+
+    @property
+    def upload_attempts(self) -> int:
+        with self._state_lock:
+            return self._upload_attempts
 
     @property
     def max_concurrent_folder_creates(self) -> int:
