@@ -73,6 +73,12 @@ uv sync
 uv run task test
 ```
 
+## エージェント運用
+
+- [Issue管理](docs/agents/issue-tracker.md)
+- [トリアージラベル](docs/agents/triage-labels.md)
+- [ドメイン文書](docs/agents/domain.md)
+
 ## 使用例
 
 ### Google Driveへのアップロード
