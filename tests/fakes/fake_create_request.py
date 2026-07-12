@@ -37,6 +37,8 @@ class FakeCreateRequest:
                         id=fid,
                     )
                 )
+                if self._service._folder_create_response_errors:
+                    raise self._service._folder_create_response_errors.pop(0)
         finally:
             self._service._track_folder_exit()
 

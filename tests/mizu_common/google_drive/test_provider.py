@@ -1,5 +1,6 @@
 """GoogleDriveProvider のアップロード機能のテスト."""
 
+import json
 import logging
 import threading
 from typing import Any
@@ -29,10 +30,15 @@ def _make_provider(
     return provider, fake
 
 
-def _make_http_error(status: int) -> HttpError:
+def _make_http_error(status: int, reason: str | None = None) -> HttpError:
     """指定された HTTP status の Google API エラーが作成されること."""
     response = httplib2.Response({"status": str(status)})
-    return HttpError(response, b"{}", uri="https://example.invalid/drive")
+    content = (
+        json.dumps({"error": {"errors": [{"reason": reason}]}}).encode()
+        if reason
+        else b"{}"
+    )
+    return HttpError(response, content, uri="https://example.invalid/drive")
 
 
 @pytest.fixture
@@ -203,6 +209,8 @@ def test_upload_retries_transient_metadata_transport_error(
     "error",
     [
         _make_http_error(429),
+        _make_http_error(403, "rateLimitExceeded"),
+        _make_http_error(403, "userRateLimitExceeded"),
         _make_http_error(500),
         _make_http_error(599),
         BrokenPipeError("broken pipe"),
@@ -210,7 +218,17 @@ def test_upload_retries_transient_metadata_transport_error(
         ConnectionResetError("connection reset"),
         ConnectionAbortedError("connection aborted"),
     ],
-    ids=["429", "500", "599", "epipe", "timeout", "reset", "aborted"],
+    ids=[
+        "429",
+        "rate-limit-403",
+        "user-rate-limit-403",
+        "500",
+        "599",
+        "epipe",
+        "timeout",
+        "reset",
+        "aborted",
+    ],
 )
 @pytest.mark.parametrize("seed_existing", [False, True], ids=["create", "update"])
 def test_upload_retries_transient_upload_error(
@@ -244,21 +262,26 @@ def test_upload_retries_transient_upload_error(
     assert len(fake.updated_files) == int(seed_existing)
 
 
+@pytest.mark.parametrize(
+    "error",
+    [_make_http_error(400), _make_http_error(403, "insufficientPermissions")],
+    ids=["bad-request", "permission-denied"],
+)
 def test_upload_does_not_retry_permanent_http_error(
     test_file: str,
+    error: HttpError,
 ) -> None:
     """恒久的な4xxエラーが発生した場合に再試行されないこと.
 
     Arrange:
-        files.list で400が発生し、その次は成功する状態が用意される。
+        files.list で恒久的な4xxが発生する状態が用意される。
     Act:
         upload() が実行される。
     Assert:
-        初回の400がそのまま送出され、再試行されないこと。
+        初回の4xxがそのまま送出され、再試行されないこと。
     """
     # Arrange
     provider, fake = _make_provider()
-    error = _make_http_error(400)
     fake.inject_list_error(error)
 
     # Act
@@ -268,6 +291,32 @@ def test_upload_does_not_retry_permanent_http_error(
     # Assert
     assert exc_info.value is error
     assert fake.list_attempts == 1
+
+
+def test_upload_reuses_folder_created_before_response_is_lost(
+    test_file: str,
+    mocker: MockerFixture,
+) -> None:
+    """フォルダ作成の応答喪失後に同名フォルダが重複作成されないこと.
+
+    Arrange:
+        フォルダ作成は成功するが応答時にtimeoutが発生する状態が用意される。
+    Act:
+        フォルダパス付きの upload() が実行される。
+    Assert:
+        作成済みフォルダが検索され、フォルダが追加作成されないこと。
+    """
+    # Arrange
+    provider, fake = _make_provider(folder_id="root_folder")
+    fake.inject_folder_create_response_error(TimeoutError("response lost"))
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    provider.upload(test_file, "folder/test.txt")
+
+    # Assert
+    assert len(fake.created_folders) == 1
+    assert len(fake.created_files) == 1
 
 
 def test_upload_raises_last_error_after_retry_limit(

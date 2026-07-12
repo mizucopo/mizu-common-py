@@ -27,6 +27,7 @@ class FakeDriveService:
 
         self._list_errors: list[Exception] = []
         self._upload_errors: list[Exception] = []
+        self._folder_create_response_errors: list[Exception] = []
         self._list_attempts = 0
         self._upload_attempts = 0
 
@@ -82,6 +83,9 @@ class FakeDriveService:
 
     def inject_upload_error(self, error: Exception) -> None:
         self._upload_errors.append(error)
+
+    def inject_folder_create_response_error(self, error: Exception) -> None:
+        self._folder_create_response_errors.append(error)
 
     def _consume_upload_error(self) -> None:
         with self._state_lock:

@@ -4,7 +4,7 @@ import logging
 import re
 import threading
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
@@ -237,15 +237,37 @@ class GoogleDriveProvider:
             "parents": [parent_id],
             "mimeType": self.FOLDER_MIME_TYPE,
         }
-        result = execute_with_retry(
-            lambda: (
-                self.service.files()
-                .create(
-                    body=file_metadata,  # type: ignore[arg-type]
-                    fields="id",
+
+        creation_outcome_unknown = False
+
+        def create_or_recover_folder() -> dict[str, Any]:
+            nonlocal creation_outcome_unknown
+            if creation_outcome_unknown:
+                existing_folder_id = self._find_folder(name, parent_id)
+                if existing_folder_id is not None:
+                    logger.info(
+                        "Recovered folder after ambiguous creation failure: "
+                        f"'{name}' (ID: {existing_folder_id})"
+                    )
+                    return {"id": existing_folder_id}
+                creation_outcome_unknown = False
+
+            try:
+                return cast(
+                    dict[str, Any],
+                    self.service.files()
+                    .create(
+                        body=file_metadata,  # type: ignore[arg-type]
+                        fields="id",
+                    )
+                    .execute(),
                 )
-                .execute()
-            ),
+            except Exception:
+                creation_outcome_unknown = True
+                raise
+
+        result = execute_with_retry(
+            create_or_recover_folder,
             max_retries=self.MAX_RETRIES,
             stage="folder_create",
             target=name,

@@ -1,6 +1,7 @@
 """Google Drive API 呼び出しの共通リトライ処理。"""
 
 import errno
+import json
 import logging
 import random
 import ssl
@@ -22,6 +23,7 @@ _RETRYABLE_ERRNOS = {
     errno.ECONNREFUSED,
     errno.ECONNRESET,
 }
+_RETRYABLE_403_REASONS = {"rateLimitExceeded", "userRateLimitExceeded"}
 
 
 def execute_with_retry(
@@ -62,7 +64,11 @@ def execute_with_retry(
 def _is_retryable(error: Exception) -> bool:
     if isinstance(error, HttpError):
         status = _http_status(error)
-        return status == 429 or (status is not None and 500 <= status <= 599)
+        return (
+            status == 429
+            or (status == 403 and bool(_http_reasons(error) & _RETRYABLE_403_REASONS))
+            or (status is not None and 500 <= status <= 599)
+        )
 
     if isinstance(
         error,
@@ -82,3 +88,28 @@ def _http_status(error: Exception) -> int | None:
     if not isinstance(error, HttpError):
         return None
     return int(error.resp.status)
+
+
+def _http_reasons(error: HttpError) -> set[str]:
+    try:
+        payload: object = json.loads(error.content)
+    except TypeError, ValueError:
+        return set()
+
+    if not isinstance(payload, dict):
+        return set()
+    error_payload = payload.get("error")
+    if not isinstance(error_payload, dict):
+        return set()
+    error_details = error_payload.get("errors")
+    if not isinstance(error_details, list):
+        return set()
+
+    reasons: set[str] = set()
+    for detail in error_details:
+        if not isinstance(detail, dict):
+            continue
+        reason = detail.get("reason")
+        if isinstance(reason, str):
+            reasons.add(reason)
+    return reasons
