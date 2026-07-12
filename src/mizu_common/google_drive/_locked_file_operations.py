@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any
 
 from googleapiclient.http import MediaFileUpload
 
+from mizu_common.google_drive._retry import execute_with_retry
+
 if TYPE_CHECKING:
     from mizu_common.google_drive.provider import GoogleDriveProvider
 
@@ -73,10 +75,15 @@ class _LockedFileOperations:
         )
 
         try:
-            results = (
-                self._provider.service.files()
-                .list(q=query, spaces="drive", fields="files(id, name)")
-                .execute()
+            results = execute_with_retry(
+                lambda: (
+                    self._provider.service.files()
+                    .list(q=query, spaces="drive", fields="files(id, name)")
+                    .execute()
+                ),
+                max_retries=self._provider.MAX_RETRIES,
+                stage="file_search",
+                target=filename,
             )
             files = results.get("files", [])
 
@@ -131,14 +138,17 @@ class _LockedFileOperations:
             fields="id",
         )
 
-        self.execute_upload(request, source_path)
+        self.execute_upload(request, source_path, destination_filename)
 
-    def update_file(self, file_id: str, source_path: str) -> None:
+    def update_file(
+        self, file_id: str, source_path: str, destination_filename: str
+    ) -> None:
         """既存ファイルを更新する。
 
         Args:
             file_id: 更新するファイルの ID
             source_path: ローカルファイルパス
+            destination_filename: Google Drive 上のファイル名
 
         Raises:
             RuntimeError: アップロード失敗時
@@ -156,14 +166,17 @@ class _LockedFileOperations:
         )
 
         # チャンク単位のアップロード実行（リトライ付き）
-        self.execute_upload(request, source_path)
+        self.execute_upload(request, source_path, destination_filename)
 
-    def execute_upload(self, request: Any, source_path: str) -> None:
+    def execute_upload(
+        self, request: Any, source_path: str, destination_filename: str
+    ) -> None:
         """チャンク単位でアップロードを実行する。
 
         Args:
             request: Google Drive API リクエストオブジェクト
             source_path: アップロードするファイルパス
+            destination_filename: Google Drive 上のファイル名
 
         Raises:
             Exception: アップロード失敗時（元の例外がそのまま伝播）
@@ -173,8 +186,11 @@ class _LockedFileOperations:
 
         try:
             while response is None:
-                status, response = request.next_chunk(
-                    num_retries=self._provider.MAX_RETRIES
+                status, response = execute_with_retry(
+                    lambda: request.next_chunk(num_retries=0),
+                    max_retries=self._provider.MAX_RETRIES,
+                    stage="upload",
+                    target=destination_filename,
                 )
 
             file_id = str(response.get("id"))

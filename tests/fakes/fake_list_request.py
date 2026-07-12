@@ -18,6 +18,7 @@ class FakeListRequest:
 
     def execute(self) -> dict[str, Any]:
         with self._service._state_lock:
+            self._service._list_attempts += 1
             if self._service._list_errors:
                 raise self._service._list_errors.pop(0)
 

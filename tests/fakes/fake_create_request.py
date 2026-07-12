@@ -37,12 +37,15 @@ class FakeCreateRequest:
                         id=fid,
                     )
                 )
+                if self._service._folder_create_response_errors:
+                    raise self._service._folder_create_response_errors.pop(0)
         finally:
             self._service._track_folder_exit()
 
         return {"id": fid}
 
     def next_chunk(self, **_kwargs: object) -> tuple[None, dict[str, str]]:
+        self._service._consume_upload_error()
         body = self._kwargs.get("body", {})
         name = body.get("name", "")
         parent_id = body.get("parents", [""])[0] if body.get("parents") else ""

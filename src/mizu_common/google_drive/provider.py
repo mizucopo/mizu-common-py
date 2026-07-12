@@ -4,13 +4,14 @@ import logging
 import re
 import threading
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
 
 from mizu_common.constants.google_scope import GoogleScope
 from mizu_common.google_drive._locked_file_operations import _LockedFileOperations
+from mizu_common.google_drive._retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ class GoogleDriveProvider:
             existing_file_id = ops.search_for_file(destination_filename)
 
             if existing_file_id:
-                ops.update_file(existing_file_id, source_path)
+                ops.update_file(existing_file_id, source_path, destination_filename)
             else:
                 ops.create_file(source_path, destination_filename)
 
@@ -202,10 +203,15 @@ class GoogleDriveProvider:
             f"trashed = false"
         )
         logger.debug(f"Searching for folder '{name}' in parent '{parent_id}'")
-        results = (
-            self.service.files()
-            .list(q=query, spaces="drive", fields="files(id)")
-            .execute()
+        results = execute_with_retry(
+            lambda: (
+                self.service.files()
+                .list(q=query, spaces="drive", fields="files(id)")
+                .execute()
+            ),
+            max_retries=self.MAX_RETRIES,
+            stage="folder_search",
+            target=name,
         )
         files = results.get("files", [])
         if files:
@@ -231,13 +237,40 @@ class GoogleDriveProvider:
             "parents": [parent_id],
             "mimeType": self.FOLDER_MIME_TYPE,
         }
-        result = (
-            self.service.files()
-            .create(
-                body=file_metadata,  # type: ignore[arg-type]
-                fields="id",
-            )
-            .execute()
+
+        creation_outcome_unknown = False
+
+        def create_or_recover_folder() -> dict[str, Any]:
+            nonlocal creation_outcome_unknown
+            if creation_outcome_unknown:
+                existing_folder_id = self._find_folder(name, parent_id)
+                if existing_folder_id is not None:
+                    logger.info(
+                        "Recovered folder after ambiguous creation failure: "
+                        f"'{name}' (ID: {existing_folder_id})"
+                    )
+                    return {"id": existing_folder_id}
+                creation_outcome_unknown = False
+
+            try:
+                return cast(
+                    dict[str, Any],
+                    self.service.files()
+                    .create(
+                        body=file_metadata,  # type: ignore[arg-type]
+                        fields="id",
+                    )
+                    .execute(),
+                )
+            except Exception:
+                creation_outcome_unknown = True
+                raise
+
+        result = execute_with_retry(
+            create_or_recover_folder,
+            max_retries=self.MAX_RETRIES,
+            stage="folder_create",
+            target=name,
         )
         folder_id = str(result.get("id"))
         logger.info(f"Created folder '{name}' (ID: {folder_id})")

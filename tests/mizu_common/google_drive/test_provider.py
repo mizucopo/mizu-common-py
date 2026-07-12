@@ -1,10 +1,15 @@
 """GoogleDriveProvider のアップロード機能のテスト."""
 
+import json
+import logging
 import threading
 from typing import Any
 from unittest.mock import MagicMock
 
+import httplib2
 import pytest
+from googleapiclient.errors import HttpError
+from pytest_mock import MockerFixture
 
 from mizu_common.google_drive.provider import GoogleDriveProvider
 from tests.fakes.fake_drive_service import FakeDriveService
@@ -23,6 +28,17 @@ def _make_provider(
         drive_service=fake,
     )
     return provider, fake
+
+
+def _make_http_error(status: int, reason: str | None = None) -> HttpError:
+    """指定された HTTP status の Google API エラーが作成されること."""
+    response = httplib2.Response({"status": str(status)})
+    content = (
+        json.dumps({"error": {"errors": [{"reason": reason}]}}).encode()
+        if reason
+        else b"{}"
+    )
+    return HttpError(response, content, uri="https://example.invalid/drive")
 
 
 @pytest.fixture
@@ -125,6 +141,244 @@ def test_upload_with_path_updates_existing_file(test_file: str) -> None:
     # Assert
     assert len(fake.updated_files) == 1
     assert len(fake.created_files) == 0
+
+
+def test_upload_retries_transient_metadata_http_error(
+    test_file: str,
+    mocker: MockerFixture,
+) -> None:
+    """ファイル検索で一時的な503が発生した場合に再試行されること.
+
+    Arrange:
+        files.list の初回呼び出しで503が発生する状態が用意される。
+    Act:
+        upload() が実行される。
+    Assert:
+        ファイル検索が再試行され、アップロードが完了すること。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    fake.inject_list_error(_make_http_error(503))
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert fake.list_attempts == 2
+    assert len(fake.created_files) == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError("timed out"),
+        ConnectionResetError("connection reset"),
+        ConnectionAbortedError("connection aborted"),
+    ],
+    ids=["timeout", "connection-reset", "connection-aborted"],
+)
+def test_upload_retries_transient_metadata_transport_error(
+    test_file: str,
+    mocker: MockerFixture,
+    error: Exception,
+) -> None:
+    """ファイル検索で一時的な通信障害が発生した場合に再試行されること.
+
+    Arrange:
+        files.list の初回呼び出しで一時的な通信例外が発生する状態が用意される。
+    Act:
+        upload() が実行される。
+    Assert:
+        ファイル検索が再試行され、アップロードが完了すること。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    fake.inject_list_error(error)
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert fake.list_attempts == 2
+    assert len(fake.created_files) == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _make_http_error(429),
+        _make_http_error(403, "rateLimitExceeded"),
+        _make_http_error(403, "userRateLimitExceeded"),
+        _make_http_error(500),
+        _make_http_error(599),
+        BrokenPipeError("broken pipe"),
+        TimeoutError("timed out"),
+        ConnectionResetError("connection reset"),
+        ConnectionAbortedError("connection aborted"),
+    ],
+    ids=[
+        "429",
+        "rate-limit-403",
+        "user-rate-limit-403",
+        "500",
+        "599",
+        "epipe",
+        "timeout",
+        "reset",
+        "aborted",
+    ],
+)
+@pytest.mark.parametrize("seed_existing", [False, True], ids=["create", "update"])
+def test_upload_retries_transient_upload_error(
+    test_file: str,
+    mocker: MockerFixture,
+    error: Exception,
+    seed_existing: bool,
+) -> None:
+    """アップロード中の一時障害後に同じセッションが再開されること.
+
+    Arrange:
+        next_chunk の初回呼び出しで一時障害が発生する状態が用意される。
+    Act:
+        upload() が実行される。
+    Assert:
+        next_chunk が再試行され、アップロードが完了すること。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    if seed_existing:
+        fake.seed_file("test.txt", "test_folder")
+    fake.inject_upload_error(error)
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert fake.upload_attempts == 2
+    assert len(fake.created_files) == int(not seed_existing)
+    assert len(fake.updated_files) == int(seed_existing)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_make_http_error(400), _make_http_error(403, "insufficientPermissions")],
+    ids=["bad-request", "permission-denied"],
+)
+def test_upload_does_not_retry_permanent_http_error(
+    test_file: str,
+    error: HttpError,
+) -> None:
+    """恒久的な4xxエラーが発生した場合に再試行されないこと.
+
+    Arrange:
+        files.list で恒久的な4xxが発生する状態が用意される。
+    Act:
+        upload() が実行される。
+    Assert:
+        初回の4xxがそのまま送出され、再試行されないこと。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    fake.inject_list_error(error)
+
+    # Act
+    with pytest.raises(HttpError) as exc_info:
+        provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert exc_info.value is error
+    assert fake.list_attempts == 1
+
+
+def test_upload_reuses_folder_created_before_response_is_lost(
+    test_file: str,
+    mocker: MockerFixture,
+) -> None:
+    """フォルダ作成の応答喪失後に同名フォルダが重複作成されないこと.
+
+    Arrange:
+        フォルダ作成は成功するが応答時にtimeoutが発生する状態が用意される。
+    Act:
+        フォルダパス付きの upload() が実行される。
+    Assert:
+        作成済みフォルダが検索され、フォルダが追加作成されないこと。
+    """
+    # Arrange
+    provider, fake = _make_provider(folder_id="root_folder")
+    fake.inject_folder_create_response_error(TimeoutError("response lost"))
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    provider.upload(test_file, "folder/test.txt")
+
+    # Assert
+    assert len(fake.created_folders) == 1
+    assert len(fake.created_files) == 1
+
+
+def test_upload_raises_last_error_after_retry_limit(
+    test_file: str,
+    mocker: MockerFixture,
+) -> None:
+    """再試行上限を超えた場合に最後のエラーが送出されること.
+
+    Arrange:
+        files.list が初回と最大5回の再試行すべてで503になる状態が用意される。
+    Act:
+        upload() が実行される。
+    Assert:
+        6回目に発生した最後の503が呼び出し元へ送出されること。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    errors = [_make_http_error(503) for _ in range(provider.MAX_RETRIES + 1)]
+    for error in errors:
+        fake.inject_list_error(error)
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    with pytest.raises(HttpError) as exc_info:
+        provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert exc_info.value is errors[-1]
+    assert fake.list_attempts == provider.MAX_RETRIES + 1
+
+
+def test_upload_logs_retry_context(
+    test_file: str,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """再試行予定が処理段階と対象を含めてログ出力されること.
+
+    Arrange:
+        ファイル検索の初回呼び出しで503が発生する状態が用意される。
+        バックオフ時間が1秒に固定される。
+    Act:
+        upload() が実行される。
+    Assert:
+        試行回数、待機秒数、処理段階、対象、エラー種別が記録されること。
+    """
+    # Arrange
+    provider, fake = _make_provider()
+    fake.inject_list_error(_make_http_error(503))
+    mocker.patch("mizu_common.google_drive._retry.random.random", return_value=0.5)
+    mocker.patch("mizu_common.google_drive._retry.time.sleep")
+
+    # Act
+    with caplog.at_level(logging.WARNING):
+        provider.upload(test_file, "test.txt")
+
+    # Assert
+    assert "retry_attempt=1" in caplog.text
+    assert "delay_seconds=1.0" in caplog.text
+    assert "stage=file_search" in caplog.text
+    assert "target=test.txt" in caplog.text
+    assert "error_type=HttpError" in caplog.text
 
 
 @pytest.mark.parametrize(
