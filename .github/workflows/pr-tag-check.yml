@@ -21,7 +21,6 @@ jobs:
 
       - name: Read version
         id: version
-        continue-on-error: true
         run: |
           VERSION="$(awk -F'\"' '/^version *=/ {print $2}' pyproject.toml)"
           if [ -z "$VERSION" ]; then
@@ -32,7 +31,6 @@ jobs:
       - name: Check if tag exists
         id: tag
         if: steps.version.outcome == 'success'
-        continue-on-error: true
         run: |
           git fetch --tags
           if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
@@ -109,7 +107,7 @@ jobs:
             const versionSourceValidationFailed =
               process.env.VERSION_SOURCE_VALIDATION_FAILED === "true";
 
-            let checkConclusion = "neutral";
+            let checkConclusion = "failure";
             let checkTitle = "Version tag is available";
             if (versionSourceValidationFailed) {
               checkConclusion = "failure";
@@ -134,3 +132,11 @@ jobs:
                 summary: process.env.SUMMARY,
               },
             });
+
+      - name: Enforce version tag availability
+        if: >-
+          always() &&
+          (steps.version.outcome != 'success' ||
+          steps.tag.outcome != 'success' ||
+          steps.tag.outputs.exists != 'false')
+        run: exit 1
