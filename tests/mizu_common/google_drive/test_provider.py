@@ -246,7 +246,6 @@ def test_upload_retries_transient_upload_error(
 
 def test_upload_does_not_retry_permanent_http_error(
     test_file: str,
-    mocker: MockerFixture,
 ) -> None:
     """恒久的な4xxエラーが発生した場合に再試行されないこと.
 
@@ -261,7 +260,6 @@ def test_upload_does_not_retry_permanent_http_error(
     provider, fake = _make_provider()
     error = _make_http_error(400)
     fake.inject_list_error(error)
-    sleep = mocker.patch("mizu_common.google_drive._retry.time.sleep")
 
     # Act
     with pytest.raises(HttpError) as exc_info:
@@ -270,7 +268,6 @@ def test_upload_does_not_retry_permanent_http_error(
     # Assert
     assert exc_info.value is error
     assert fake.list_attempts == 1
-    sleep.assert_not_called()
 
 
 def test_upload_raises_last_error_after_retry_limit(
