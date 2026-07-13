@@ -1,6 +1,6 @@
 [project]
 name = "mizu-common-py"
-version = "2.8.4"
+version = "2.8.5"
 description = "Python用共通ライブラリ"
 authors = [
     {name = "みず", email = "mizu.copo@gmail.com"}
@@ -22,7 +22,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.1.0",
     "pytest-mock>=3.15.1",
     "ruff>=0.14.10",
