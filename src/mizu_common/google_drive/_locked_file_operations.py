@@ -162,7 +162,7 @@ class _LockedFileOperations:
 
         # files().update() リクエストの構築
         request = self._provider.service.files().update(
-            fileId=file_id, media_body=media, fields="id"
+            fileId=file_id, body={}, media_body=media, fields="id"
         )
 
         # チャンク単位のアップロード実行（リトライ付き）
