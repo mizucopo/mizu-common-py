@@ -10,7 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "google-api-python-client>=2.198.0",
     "google-api-python-client-stubs>=1.39.0",
-    "google-auth>=2.55.2",
+    "google-auth>=2.56.0",
     "httpx>=0.28.0",
     "portalocker>=3.0.0",
     "python-decouple>=3.8",
