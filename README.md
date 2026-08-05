@@ -128,9 +128,7 @@ async def main() -> None:
     async with DiscordClient(
         webhook_url="https://discord.com/api/webhooks/...",
     ) as client:
-        await client.send_message(
-            "2000文字を超える場合は自動的に分割送信されます"
-        )
+        await client.send_message("2000文字を超える場合は自動的に分割送信されます")
 ```
 
 ## ライセンス
