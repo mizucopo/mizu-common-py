@@ -151,7 +151,9 @@ provider = GoogleDriveProvider.from_credentials(
 provider.upload(source_path="/local/file.zip", destination_filename="backup.zip")
 
 # パス区切りでフォルダ階層を指定（存在しないフォルダは自動作成）
-provider.upload(source_path="/local/file.zip", destination_filename="backups/2024/backup.zip")
+provider.upload(
+    source_path="/local/file.zip", destination_filename="backups/2024/backup.zip"
+)
 ```
 
 - `__init__(folder_id: str, credentials: Credentials, drive_service: Any | None = None)`
@@ -211,10 +213,10 @@ videos = client.get_channel_videos(channel_id="CHANNEL_ID")
 ```python
 @dataclass(frozen=True)
 class YouTubeVideoInfo:
-    video_id: str        # YouTube動画ID
-    title: str           # 動画タイトル
+    video_id: str  # YouTube動画ID
+    title: str  # 動画タイトル
     published_at: datetime  # ISO 8601形式の日時（タイムゾーン付き）
-    duration: str        # ISO 8601形式の長さ（例: "PT1H30M"）
+    duration: str  # ISO 8601形式の長さ（例: "PT1H30M"）
 ```
 
 ---
@@ -270,9 +272,9 @@ for asset in result.assets:
 ```python
 @dataclass(frozen=True)
 class Asset:
-    name: str        # 資産名
+    name: str  # 資産名
     amount: Decimal  # 現在の金額
-    rate: Decimal    # 目標配分割合（合計1.0になるように設定）
+    rate: Decimal  # 目標配分割合（合計1.0になるように設定）
 ```
 
 ---
@@ -282,9 +284,9 @@ class Asset:
 ```python
 @dataclass(frozen=True)
 class AssetCalculation:
-    asset: Asset              # 元の資産データ
-    current_rate: Decimal     # 現在の配分比率（calculate_current_ratesで計算）
-    flow_amount: Decimal      # 入出金額（正: 入金、負: 出金、0: 変更なし）
+    asset: Asset  # 元の資産データ
+    current_rate: Decimal  # 現在の配分比率（calculate_current_ratesで計算）
+    flow_amount: Decimal  # 入出金額（正: 入金、負: 出金、0: 変更なし）
 ```
 
 ---
@@ -309,9 +311,9 @@ class AssetAdjustmentResult:
 ```python
 from mizu_common import AssetAdjustmentType
 
-AssetAdjustmentType.DEPOSIT     # "deposit" - 入金
+AssetAdjustmentType.DEPOSIT  # "deposit" - 入金
 AssetAdjustmentType.WITHDRAWAL  # "withdrawal" - 出金
-AssetAdjustmentType.NONE        # "none" - 変更なし
+AssetAdjustmentType.NONE  # "none" - 変更なし
 ```
 
 ---
@@ -322,7 +324,7 @@ AssetAdjustmentType.NONE        # "none" - 変更なし
 from mizu_common import GoogleScope
 
 GoogleScope.YOUTUBE_READONLY  # "https://www.googleapis.com/auth/youtube.readonly"
-GoogleScope.DRIVE_FILE        # "https://www.googleapis.com/auth/drive.file"
+GoogleScope.DRIVE_FILE  # "https://www.googleapis.com/auth/drive.file"
 ```
 
 ---
@@ -426,10 +428,10 @@ result = await retry.execute(lambda: fetch_data())
 from mizu_common import DiscordEmbed
 
 embed = DiscordEmbed(
-    title="タイトル",           # 必須
-    description="説明文",       # オプション
-    color=0x00FF00,            # オプション: 色（10進数）
-    url="https://example.com", # オプション: タイトルのリンク先
+    title="タイトル",  # 必須
+    description="説明文",  # オプション
+    color=0x00FF00,  # オプション: 色（10進数）
+    url="https://example.com",  # オプション: タイトルのリンク先
 )
 ```
 
@@ -657,6 +659,7 @@ scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 
 # 正しい: Enumを使用
 from mizu_common import GoogleScope
+
 scopes = [GoogleScope.YOUTUBE_READONLY]
 ```
 
