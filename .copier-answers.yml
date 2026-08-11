@@ -1,7 +1,12 @@
-_commit: afdb582
+_commit: 7a560e6
 _src_path: git@github.com:mizucopo/repo-template.git
 author_email: mizu.copo@gmail.com
 author_name: みず
+project_description: Python用共通ライブラリ
+project_name: mizu-common-py
+project_version: 2.8.27
+python_package_name: mizu_common
+python_project_kind: library
 python_version: '3.14'
 use_chrome_extension: false
 use_dependabot_github_actions: true
@@ -12,3 +17,9 @@ use_mit_license: true
 use_python: true
 use_rust: false
 use_tauri: false
+repo_template_python_starters_created: true
+repo_template_python_application_starter_created: true
+repo_template_python_package_starter_names: ["mizu_common"]
+repo_template_rust_starters_created: false
+repo_template_chrome_starters_created: false
+repo_template_tauri_starters_created: false
