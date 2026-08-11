@@ -373,7 +373,7 @@ wheels = [
 
 [[package]]
 name = "mizu-common-py"
-version = "2.8.26"
+version = "2.8.27"
 source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },
